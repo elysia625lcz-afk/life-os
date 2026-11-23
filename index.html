@@ -61,7 +61,7 @@ button{cursor:pointer}
 input.f,textarea.f,select.f{width:100%;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 12px;font-size:16px}
 textarea.f{resize:vertical;min-height:70px}
 .fl{font-size:13px;color:var(--sub);margin:0 0 4px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:15px}
 .sheet{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center}
 .sheet .bg{position:absolute;inset:0;background:rgb(0 0 0 / .4)}
@@ -117,11 +117,12 @@ const DEFAULT_ACTIVITIES=[
 ];
 
 const S={user:null,tasks:[],acts:[],settings:null,session:null,energy:load("energy","mid"),pick:0,view:"home",
-  all:load("allFilter",{q:"",status:"todo",area:"",sort:"due"}),cal:{day:null},rec:{day:null,usage:[],sessions:[],events:[],loading:false},loaded:false,busy:false};
+  all:load("allFilter",{q:"",status:"todo",area:"",sort:"due"}),cal:{day:null},rec:{},loaded:false,busy:false,revision:0};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function load(k,d){try{const v=localStorage.getItem("los."+k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
+function load(k,d){try{return JSON.parse(localStorage.getItem("los."+k))??d;}catch(e){return d;}}
 function save(k,v){try{localStorage.setItem("los."+k,JSON.stringify(v));}catch(e){}}
+const userKey=k=>S.user.id+"."+k;
 
 /* ---------- time ---------- */
 const pad=n=>String(n).padStart(2,"0");
@@ -130,10 +131,11 @@ const today=()=>ymd(new Date());
 const addDays=(s,n)=>{const [y,m,d]=s.split("-").map(Number);const x=new Date(y,m-1,d+n);return ymd(x);};
 const WD=["日","一","二","三","四","五","六"];
 const hm=t=>{if(!t)return null;const [h,m]=String(t).split(":").map(Number);return h*60+m;};
-function sleepAt(){ // next bedtime as a Date
+function sleepAt(){ // bedtime in the current cycle, starting at day_start
   const st=S.settings||{}; const sl=hm(st.sleep_time)??1410, ds=hm(st.day_start)??480;
   const n=new Date(); const b=new Date(n.getFullYear(),n.getMonth(),n.getDate(),Math.floor(sl/60),sl%60);
-  if(sl<ds){ if(n.getHours()*60+n.getMinutes()>=ds) b.setDate(b.getDate()+1); }
+  const beforeDayStart=n.getHours()*60+n.getMinutes()<ds;
+  b.setDate(b.getDate()+(sl<ds?1:0)-(beforeDayStart?1:0));
   return b;
 }
 const minsLeftToSleep=()=>Math.round((sleepAt()-new Date())/60000);
@@ -156,7 +158,7 @@ function rank(){
     if(t.plan_date&&t.plan_date>td) continue;
     let s=0, why="";
     if(t.due_at){const h=(new Date(t.due_at)-now)/36e5;
-      if(h<0){s+=95;why="已过截止时间";} else if(h<12){s+=90;why=dueText(t);} else if(h<36){s+=60;why="明天截止";} else if(h<72){s+=35;why=dueText(t);} }
+      if(h<0){s+=95;why="已过截止时间";} else if(h<12){s+=90;why=dueText(t);} else if(h<36){s+=60;why=dueText(t);} else if(h<72){s+=35;why=dueText(t);} }
     if(t.plan_date===td){s+=40;why=why||"排在今天";}
     else if(t.plan_date&&t.plan_date<td){s+=30;why=why||"之前没做完";}
     if(t.status==="doing"||t.next_step){s+=15;why=why||"接着上次";}
@@ -176,45 +178,105 @@ function rank(){
 function todayOpen(){ return S.tasks.filter(t=>t.plan_date===today()&&!["done","dropped","someday"].includes(t.status)); }
 
 /* ---------- data ---------- */
-async function q(p,label){ const r=await p; if(r.error){ toast((label||"没保存上")+"："+(r.error.message||"出错")); throw r.error; } return r.data; }
+async function q(p,label){
+  const user=S.user, r=await p;
+  if(S.user!==user) throw new Error("Session changed");
+  if(r.error){ toast((label||"没保存上")+"："+(r.error.message||"出错")); throw r.error; }
+  return r.data;
+}
 async function loadAll(){
-  const uid=S.user.id;
-  const [tasks,acts,settings,sessions,caps]=await Promise.all([
+  const user=S.user, uid=user.id, revision=S.revision;
+  let [tasks,acts,settings,sessions,caps]=await Promise.all([
     q(sb.from("tasks").select("*").neq("status","dropped").order("created_at"),"读取失败"),
     q(sb.from("activities").select("*").order("created_at"),"读取失败"),
     q(sb.from("settings").select("*").maybeSingle(),"读取失败"),
     q(sb.from("sessions").select("*").is("ended_at",null).order("started_at",{ascending:false}).limit(1),"读取失败"),
     q(sb.from("captures").select("*").is("processed_at",null).order("created_at"),"读取失败")]);
-  S.tasks=tasks; S.acts=acts; S.session=sessions[0]||null;
-  if(!settings){ S.settings=(await q(sb.from("settings").insert({user_id:uid}).select().single())); } else S.settings=settings;
-  if(!acts.length){ S.acts=await q(sb.from("activities").insert(DEFAULT_ACTIVITIES.map(a=>({...a,user_id:uid}))).select(),"活动卡没建好"); }
-  for(const c of caps){ // Siri/watch captures become inbox tasks
-    const t=await q(sb.from("tasks").insert({title:c.text.slice(0,300),status:"inbox",source:c.source||"siri"}).select().single());
-    await q(sb.from("captures").update({processed_at:new Date().toISOString(),task_id:t.id}).eq("id",c.id));
-    S.tasks.push(t);
+  if(S.user!==user) return;
+  if(!settings){
+    await q(sb.from("settings").upsert({user_id:uid},{onConflict:"user_id",ignoreDuplicates:true}));
+    settings=await q(sb.from("settings").select("*").single(),"读取失败");
   }
+  if(S.user!==user) return;
+  if(!acts.length){
+    await q(sb.rpc("seed_web_activities",{p_cards:DEFAULT_ACTIVITIES}),"活动卡没建好");
+    acts=await q(sb.from("activities").select("*").order("created_at"),"读取失败");
+  }
+  for(const c of caps){ // Siri/watch captures become inbox tasks
+    if(S.user!==user) return;
+    const external_id="capture:"+c.id;
+    const inserted=await q(sb.from("tasks").upsert({user_id:uid,external_id,title:c.text.slice(0,300),status:"inbox",source:c.source||"siri"},
+      {onConflict:"user_id,external_id",ignoreDuplicates:true}).select());
+    const t=inserted[0]||await q(sb.from("tasks").select("*").eq("external_id",external_id).single());
+    if(S.user!==user) return;
+    await q(sb.from("captures").update({processed_at:new Date().toISOString(),task_id:t.id}).eq("id",c.id));
+    if(t.status!=="dropped"&&!tasks.some(row=>row.id===t.id)) tasks.push(t);
+  }
+  if(S.user!==user||S.revision!==revision) return;
+  Object.assign(S,{tasks,acts,settings,session:sessions[0]||null});
   S.loaded=true;
 }
-async function refresh(){ if(!S.user||S.busy) return; try{ await loadAll(); render(); }catch(e){} }
+async function readAll(){
+  const user=S.user;
+  if(!user||S.loading===user) return;
+  S.loading=user;
+  try{ await loadAll(); }
+  finally{ if(S.loading===user) S.loading=null; }
+}
+async function refresh(){
+  if(!S.loaded||S.busy||S.loading||S.restoring) return;
+  const user=S.user;
+  try{
+    await readAll();
+    if(S.user!==user||S.busy) return;
+    if(S.view==="cal"&&S.rec.day===calendarDay()&&!S.rec.loading&&!S.rec.error) {
+      await loadRecord(calendarDay(),true);
+    }else render();
+  }catch(e){}
+}
+function beginWrite(){
+  if(S.busy) return false;
+  S.busy=true; S.revision++;
+  return true;
+}
 function patchLocal(id,data){ const t=S.tasks.find(x=>x.id===id); if(t) Object.assign(t,data); }
 async function updTask(id,data,label){ const r=await q(sb.from("tasks").update(data).eq("id",id).select().single(),label); patchLocal(id,r); return r; }
+async function createTask(data,draftType){
+  const key=userKey("pendingTask."+draftType), previous=load(key,null);
+  // done_at is assigned at submit time, so it is not part of the draft identity.
+  const signature=JSON.stringify({...data,done_at:undefined});
+  const id=previous?.signature===signature?previous.id:crypto.randomUUID();
+  save(key,{id,signature});
+  const inserted=await q(sb.from("tasks").upsert({...data,id,user_id:S.user.id},{onConflict:"id",ignoreDuplicates:true}).select());
+  const t=inserted[0]||await q(sb.from("tasks").select("*").eq("id",id).single());
+  if(S.tasks.some(row=>row.id===id)) patchLocal(id,t);
+  else if(t.status!=="dropped") S.tasks.push(t);
+  save(key,null);
+}
 
 /* ---------- toast & sheet ---------- */
 let tt=0;
 function toast(msg,action){ const el=$("#toast"); el.innerHTML=""; const s=document.createElement("span"); s.textContent=msg; el.append(s);
   if(action){const b=document.createElement("button");b.textContent=action.label;b.onclick=()=>{el.hidden=true;action.fn();};el.append(b);}
   el.hidden=false; clearTimeout(tt); tt=setTimeout(()=>el.hidden=true,action?6000:2600); }
-function openSheet(html){ $("#sheet-card").innerHTML=html; $("#sheet").hidden=false; }
-function closeSheet(){ $("#sheet").hidden=true; $("#sheet-card").innerHTML=""; }
+function openSheet(html,panel=null){ $("#sheet-card").innerHTML=html; $("#sheet").hidden=false;
+  $("#sheet-card").scrollTop=0; save(userKey("panel"),panel); }
+function closeSheet(){ $("#sheet").hidden=true; $("#sheet-card").innerHTML=""; if(S.user) save(userKey("panel"),null); }
+function changeView(view){
+  save(userKey("scroll."+S.view),scrollY);
+  S.view=view; save(userKey("view"),view); render();
+  scrollTo(0,load(userKey("scroll."+view),0));
+}
 
 /* ---------- views ---------- */
 function render(){
   const app=$("#app");
-  if(!S.user){ app.innerHTML=loginView(); return; }
+  if(!S.user){ stopTick(); app.innerHTML=loginView(); return; }
   if(!S.loaded){ app.innerHTML=S.loadError?`<div style="margin:auto 0;display:flex;flex-direction:column;gap:12px"><p class="note">没读到你的数据，可能是网络不稳。</p><button class="btn primary" data-act="retry">重试</button><button class="btn" data-act="logout">退出登录</button></div>`:`<p class="empty">正在读取…</p>`; return; }
   if(S.session){ app.innerHTML=timerView(); startTick(); return; }
   stopTick();
   app.innerHTML=S.view==="all"?allView():S.view==="cal"?calView():homeView();
+  if(S.view==="cal") ensureRecord();
 }
 function loginView(){
   return `<div style="margin:auto 0;display:flex;flex-direction:column;gap:12px">
@@ -230,7 +292,7 @@ function homeView(){
   const d=new Date(), left=minsLeftToSleep(), ranked=rank(), open=todayOpen();
   const pick=ranked.length?ranked[S.pick%ranked.length]:null;
   const planned=open.reduce((s,t)=>s+(t.est_min||30),0);
-  const over=left>0&&planned>left;
+  const over=planned>Math.max(0,left);
   const rest=open.filter(t=>!pick||pick.kind!=="task"||t.id!==pick.item.id).slice(0,4);
   return `
   <div class="top"><span class="date">周${WD[d.getDay()]} ${d.getMonth()+1}月${d.getDate()}日</span>
@@ -252,7 +314,7 @@ function focusCard(p,n){
       ${n>1?`<button class="btn" data-act="next">换一件</button>`:""}</div>`; }
   const t=p.item, mins=t.est_min||25;
   return `<div class="focus"><span class="label">现在做</span>
-    <button class="title" data-act="edit" data-id="${t.id}" style="all:unset;cursor:pointer;font-size:22px;font-weight:600;line-height:1.35">${esc(t.title)}</button>
+    <button class="title" data-act="edit" data-id="${t.id}" style="all:unset;cursor:pointer;overflow-wrap:anywhere;font-size:22px;font-weight:600;line-height:1.35">${esc(t.title)}</button>
     <span class="meta">${t.area?`<span class="dot" style="background:${areaColor(t.area)}"></span>${esc(t.area)} ·`:""} ${esc(p.why||"")}${p.why?" · ":""}约 ${fmtMin(mins)}</span>
     ${t.next_step||t.progress_note?`<span class="note">上次做到：${esc(t.next_step?("下次先"+t.next_step.replace(/^下次先/,"")):t.progress_note)}</span>`:""}
     <button class="btn primary" data-act="start" data-id="${t.id}" style="margin-top:6px">开始 · ${fmtMin(mins)}</button>
@@ -286,7 +348,8 @@ function allView(){
   const f=S.all, ql=f.q.trim().toLowerCase();
   let ts=S.tasks.filter(t=>t.status!=="dropped"&&(f.status==="all"||(f.status==="todo"?["todo","doing"].includes(t.status):t.status===f.status))&&(!f.area||t.area===f.area)&&(!ql||(t.title+" "+t.notes).toLowerCase().includes(ql)));
   const cnt=k=>S.tasks.filter(t=>k==="todo"?["todo","doing"].includes(t.status):t.status===k).length;
-  ts.sort(f.sort==="due"?((a,b)=>(a.due_at||"9")>(b.due_at||"9")?1:-1):((a,b)=>a.created_at<b.created_at?1:-1));
+  ts.sort(f.sort==="due"?((a,b)=>(a.due_at?Date.parse(a.due_at):Infinity)-(b.due_at?Date.parse(b.due_at):Infinity)):
+    ((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)));
   return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button><span class="date">全部任务</span><button class="iconbtn" data-act="new">+ 新建</button></div>
     <div class="search"><input class="f" id="allq" placeholder="搜索" value="${esc(f.q)}" aria-label="搜索任务"></div>
     <div class="chips" role="group" aria-label="状态">${STATUS.map(([k,l])=>`<button class="chip" data-act="fstatus" data-v="${k}" aria-pressed="${f.status===k}">${l} ${cnt(k)}</button>`).join("")}</div>
@@ -297,53 +360,69 @@ function allView(){
 
 /* ---------- calendar: plan vs record ---------- */
 const APP_COLORS={"抖音":"#D4537E","小红书":"#E24B4A","B站":"#378ADD","YouTube":"#A32D2D","TikTok":"#444441"};
-const appColor=a=>APP_COLORS[a]||"#888780";
+const appColor=a=>Object.hasOwn(APP_COLORS,a)?APP_COLORS[a]:"#888780";
 const dayStart=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d);};
 const isoDow=s=>{const g=dayStart(s).getDay();return g===0?7:g;};
-async function loadRecord(day){
-  const s=dayStart(day), e=new Date(s.getTime()+864e5), si=s.toISOString(), ei=e.toISOString();
-  S.rec.loading=true;
+const calendarDay=()=>S.cal.day||today();
+function ensureRecord(){
+  const day=calendarDay();
+  if(S.rec.day!==day) void loadRecord(day);
+}
+async function loadRecord(day,keepRows=false){
+  const si=dayStart(day).toISOString(), ei=dayStart(addDays(day,1)).toISOString();
+  const request=keepRows?{...S.rec,loading:true}:{day,loading:true};
+  S.rec=request;
   try{
     const [usage,sessions,events]=await Promise.all([
       q(sb.from("app_usage").select("*").lt("started_at",ei).or(`ended_at.gt.${si},ended_at.is.null`).order("started_at"),"读取记录失败"),
       q(sb.from("sessions").select("*").lt("started_at",ei).or(`ended_at.gt.${si},ended_at.is.null`).order("started_at"),"读取记录失败"),
       q(sb.from("events").select("*"),"读取日程失败")]);
-    S.rec={day,usage,sessions,events,loading:false};
-  }catch(err){ S.rec.loading=false; }
+    Object.assign(request,{usage,sessions,events});
+  }catch(err){ request.error=true; }
+  request.loading=false;
+  if(S.rec!==request) return;
   if(S.view==="cal") render();
 }
-function minsFrom(d0,t){return Math.round((t-d0)/60000);}
+const wallMinutes=t=>t.getHours()*60+t.getMinutes();
+function recordSpan(start,end,d0,d1){
+  const from=Math.max(Date.parse(start),+d0), to=Math.min(+end,+d1);
+  if(!(to>from)) return null;
+  const s=wallMinutes(new Date(from)), e=to===+d1?1440:wallMinutes(new Date(to));
+  return {s,e:Math.max(s,e),minutes:(to-from)/60000};
+}
 function calView(){
-  const day=S.cal.day||today();
-  if(S.rec.day!==day&&!S.rec.loading) loadRecord(day);
-  const d0=dayStart(day), d1=new Date(d0.getTime()+864e5), now=new Date();
+  const day=calendarDay(), record=S.rec;
+  const ready=record.day===day&&!!record.usage&&!record.error;
+  const failed=record.day===day&&record.error;
+  const d0=dayStart(day), d1=dayStart(addDays(day,1)), now=new Date();
   const plan=[], unscheduled=[];
   for(const t of S.tasks){ if(t.plan_date!==day||t.status==="dropped") continue;
     if(t.plan_start){ const s=hm(t.plan_start); plan.push({s,e:s+(t.est_min||30),title:t.title,color:areaColor(t.area),id:t.id,done:t.status==="done"}); }
     else unscheduled.push(t); }
-  for(const ev of (S.rec.day===day?S.rec.events:[])){
+  for(const ev of (ready?record.events:[])){
     const on=ev.on_date===day||(ev.repeat_days&&ev.repeat_days.includes(isoDow(day))&&(!ev.valid_from||ev.valid_from<=day)&&(!ev.valid_until||day<=ev.valid_until));
     if(on) plan.push({s:hm(ev.start_time),e:hm(ev.end_time),title:ev.title,color:areaColor(ev.area),fixed:true}); }
-  const rec=[], perApp={}; let fun=0, work=0;
-  if(S.rec.day===day){
-    for(const u of S.rec.usage){ const st=new Date(u.started_at), en=new Date(Math.min(u.ended_at?new Date(u.ended_at):now, st.getTime()+3*36e5, d1));
-      const s=Math.max(0,minsFrom(d0,st)), e=Math.min(1440,minsFrom(d0,en)); if(e<=s) continue;
-      rec.push({s,e,title:u.app,color:appColor(u.app),open:!u.ended_at}); perApp[u.app]=(perApp[u.app]||0)+(e-s); fun+=e-s; }
-    for(const x of S.rec.sessions){ const st=new Date(x.started_at), en=x.ended_at?new Date(x.ended_at):now;
-      const s=Math.max(0,minsFrom(d0,st)), e=Math.min(1440,minsFrom(d0,en)); if(e<=s) continue;
+  const rec=[], perApp=new Map(); let fun=0, work=0;
+  if(ready){
+    for(const u of record.usage){ const cap=Date.parse(u.started_at)+3*36e5, en=Math.min(u.ended_at?Date.parse(u.ended_at):+now,cap);
+      const span=recordSpan(u.started_at,en,d0,d1); if(!span) continue;
+      rec.push({...span,title:u.app,color:appColor(u.app),open:!u.ended_at&&day===today()&&now<cap});
+      perApp.set(u.app,(perApp.get(u.app)||0)+span.minutes); fun+=span.minutes; }
+    for(const x of record.sessions){ const en=x.ended_at?Date.parse(x.ended_at):+now;
+      const span=recordSpan(x.started_at,en,d0,d1); if(!span) continue;
       const tk=S.tasks.find(t=>t.id===x.task_id), ac=S.acts.find(a=>a.id===x.activity_id);
-      rec.push({s,e,title:tk?tk.title:ac?ac.title:"做事",soft:true}); work+=e-s; }
+      rec.push({...span,title:tk?tk.title:ac?ac.title:"做事",soft:true}); work+=span.minutes; }
   }
   const all=[...plan,...rec]; const lo=Math.min(7,...all.map(b=>Math.floor(b.s/60))), hi=Math.max(24,...all.map(b=>Math.ceil(b.e/60)));
   const H=40, top=lo*60, px=m=>(m-top)/60*H, height=(hi-lo)*H;
-  const blk=b=>{const y=px(b.s), h=Math.max(16,px(b.e)-y-2); return `<div class="blk${b.soft||b.fixed?" soft":""}" style="top:${y}px;height:${h}px;${b.soft||b.fixed?"":"background:"+b.color}${b.fixed?";box-shadow:inset 3px 0 0 "+b.color:""}"><b>${esc(b.title)}${b.open?" · 进行中":""}</b>${h>30?`<span>${pad(Math.floor(b.s/60)%24)}:${pad(b.s%60)}–${pad(Math.floor(b.e/60)%24)}:${pad(b.e%60)} · ${b.e-b.s} 分</span>`:""}</div>`;};
+  const blk=b=>{const y=px(b.s), h=Math.max(16,px(b.e)-y-2); return `<div class="blk${b.soft||b.fixed?" soft":""}" style="top:${y}px;height:${h}px;${b.soft||b.fixed?"":"background:"+b.color}${b.fixed?";box-shadow:inset 3px 0 0 "+b.color:""}"><b>${esc(b.title)}${b.open?" · 进行中":""}</b>${h>30?`<span>${pad(Math.floor(b.s/60)%24)}:${pad(b.s%60)}–${pad(Math.floor(b.e/60)%24)}:${pad(b.e%60)} · ${Math.round(b.minutes??b.e-b.s)} 分</span>`:""}</div>`;};
   let hrs=""; for(let h=lo+1;h<hi;h++) hrs+=`<span style="top:${(h-lo)*H}px">${pad(h%24)}:00</span>`;
-  const nowM=minsFrom(d0,now), showNow=day===today()&&nowM>=top&&nowM<=hi*60;
+  const nowM=wallMinutes(now), showNow=day===today()&&nowM>=top&&nowM<=hi*60;
   const dd=dayStart(day);
   return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button>
       <span class="daynav"><button class="iconbtn" data-act="cal-day" data-v="-1" aria-label="前一天">‹</button><span class="date">${dd.getMonth()+1}月${dd.getDate()}日 周${WD[dd.getDay()]}</span><button class="iconbtn" data-act="cal-day" data-v="1" aria-label="后一天">›</button></span>
       ${day!==today()?`<button class="iconbtn" data-act="cal-day" data-v="0">今天</button>`:"<span></span>"}</div>
-    <div class="sum">${S.rec.day===day?`<span>娱乐 <b>${fmtMin(fun)}</b></span>${Object.entries(perApp).sort((a,b)=>b[1]-a[1]).map(([a,m])=>`<span><i class="dot" style="background:${appColor(a)}"></i>${esc(a)} ${m} 分</span>`).join("")}<span>做事 <b>${fmtMin(work)}</b></span>`:`<span class="sub">正在读取这一天的记录…</span>`}</div>
+    <div class="sum">${ready?`<span>娱乐 <b>${fmtMin(Math.round(fun))}</b></span>${[...perApp].sort((a,b)=>b[1]-a[1]).map(([a,m])=>`<span><i class="dot" style="background:${appColor(a)}"></i>${esc(a)} ${Math.round(m)} 分</span>`).join("")}<span>做事 <b>${fmtMin(Math.round(work))}</b></span>`:failed?`<span class="sub">没读到这一天的记录。</span><button class="btn small" data-act="retry-record">重试</button>`:`<span class="sub">正在读取这一天的记录…</span>`}</div>
     ${unscheduled.length?`<div><p class="label" style="margin:0 0 4px">计划了、没定时间</p><div class="list">${unscheduled.map(t=>`<button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${t.est_min?fmtMin(t.est_min):""}</span></button>`).join("")}</div></div>`:""}
     <div class="tlhead"><span></span><span>计划</span><span>记录</span></div>
     <div class="tl" style="height:${height}px">
@@ -351,12 +430,13 @@ function calView(){
       <div class="lane">${plan.map(blk).join("")}${showNow?`<div class="nowline" style="top:${px(nowM)}px"></div>`:""}</div>
       <div class="lane">${rec.map(blk).join("")}${showNow?`<div class="nowline" style="top:${px(nowM)}px"></div>`:""}</div>
     </div>
-    ${S.rec.day===day&&!rec.length?`<p class="faint">这一天还没有记录。用计时器做事，或者装好快捷指令后刷视频，这里就会出现。</p>`:""}`;
+    ${ready&&!rec.length?`<p class="faint">这一天还没有记录。用计时器做事，或者装好快捷指令后刷视频，这里就会出现。</p>`:""}`;
 }
 
 /* ---------- sheets ---------- */
 function editSheet(t){
   t=t||{title:"",area:"",status:"todo",est_min:25,quadrant:0,energy:"any",due_at:null,plan_date:null,notes:""};
+  const key=userKey("taskDraft."+(t.id||"new")), draft=load(key,null);
   const due=t.due_at?new Date(t.due_at):null, dueLocal=due?ymd(due)+"T"+pad(due.getHours())+":"+pad(due.getMinutes()):"";
   openSheet(`<h2>${t.id?"任务":"新任务"}</h2>
    <form id="tf" style="display:flex;flex-direction:column;gap:12px">
@@ -368,24 +448,35 @@ function editSheet(t){
     <details><summary class="sub">更多：重要程度、需要的精力、状态、备注</summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
       <div class="grid2"><div><p class="fl">重要程度</p><select class="f" id="t-q">${["还没分","重要且紧急","重要不紧急","紧急不重要","都不"].map((l,i)=>`<option value="${i}" ${(t.quadrant||0)===i?"selected":""}>${l}</option>`).join("")}</select></div>
       <div><p class="fl">需要的精力</p><select class="f" id="t-en">${[["any","都行"],["low","累了也能做"],["mid","一般"],["high","要状态好"]].map(([k,l])=>`<option value="${k}" ${t.energy===k?"selected":""}>${l}</option>`).join("")}</select></div></div>
-      <div><p class="fl">状态</p><select class="f" id="t-st">${STATUS.map(([k,l])=>`<option value="${k}" ${t.status===k?"selected":""}>${l}</option>`).join("")}</select></div>
+      <div><p class="fl">状态</p><select class="f" id="t-st">${(t.status==="doing"?[...STATUS,["doing","进行中"]]:STATUS).map(([k,l])=>`<option value="${k}" ${t.status===k?"selected":""}>${l}</option>`).join("")}</select></div>
       ${t.progress_note||t.next_step?`<p class="sub">上次做到：${esc(t.progress_note)}${t.next_step?"；下次先"+esc(t.next_step):""}</p>`:""}
       <div><p class="fl">备注</p><textarea class="f" id="t-notes">${esc(t.notes)}</textarea></div></div></details>
     <p class="err" id="t-err"></p>
     <div class="grid2">${t.id?`<button type="button" class="btn" data-act="del" data-id="${t.id}">删除</button>`:`<button type="button" class="btn" data-act="close-sheet">取消</button>`}<button class="btn primary" type="submit">保存</button></div>
-   </form>`);
-  let area=t.area||"";
-  $("#sheet-card").querySelectorAll("[data-area]").forEach(b=>b.onclick=()=>{area=area===b.dataset.area?"":b.dataset.area;$("#sheet-card").querySelectorAll("[data-area]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.area===area));});
-  $("#tf").onsubmit=async e=>{ e.preventDefault(); const btn=e.submitter; if(btn) btn.disabled=true;
-    const title=$("#t-title").value.trim(); if(!title){$("#t-err").textContent="写一下要做什么。";if(btn)btn.disabled=false;return;}
+   </form>`,{type:"task",id:t.id||null});
+  const form=$("#tf"), details=form.querySelector("details"), fields=[...form.querySelectorAll("input,select,textarea")];
+  let area=draft?.area??(t.area||"");
+  const areas=form.querySelectorAll("[data-area]");
+  const paintArea=()=>areas.forEach(x=>x.setAttribute("aria-pressed",x.dataset.area===area));
+  const keep=()=>save(key,{area,open:details.open,values:Object.fromEntries(fields.map(f=>[f.id,f.value]))});
+  if(draft){ for(const field of fields) if(Object.hasOwn(draft.values,field.id)) field.value=draft.values[field.id]; details.open=draft.open; }
+  paintArea(); areas.forEach(b=>b.onclick=()=>{area=area===b.dataset.area?"":b.dataset.area;paintArea();keep();});
+  form.oninput=keep; details.ontoggle=()=>{ if(form.isConnected) keep(); };
+  form.onsubmit=async e=>{ e.preventDefault();
+    if(S.busy) return;
+    const title=$("#t-title").value.trim(); if(!title){$("#t-err").textContent="写一下要做什么。";return;}
     const dv=$("#t-due").value; let st=$("#t-st").value; const plan=$("#t-plan").value||null;
     if(plan&&st==="inbox") st="todo";
     const data={title,area,est_min:+$("#t-est").value,plan_date:plan,due_at:dv?new Date(dv).toISOString():null,quadrant:+$("#t-q").value,energy:$("#t-en").value,status:st,notes:$("#t-notes").value.trim(),done_at:st==="done"?(t.done_at||new Date().toISOString()):null};
-    try{ if(t.id) await updTask(t.id,data); else S.tasks.push(await q(sb.from("tasks").insert(data).select().single())); closeSheet(); toast(t.id?"保存了":"加好了"); render(); }
-    catch(err){ if(btn) btn.disabled=false; } };
+    if(!beginWrite()) return;
+    const btn=form.querySelector('[type="submit"]'); btn.disabled=true;
+    for(const field of [...fields,...areas]) field.disabled=true;
+    try{ if(t.id) await updTask(t.id,data); else await createTask(data,"editor"); save(key,null); closeSheet(); toast(t.id?"保存了":"加好了"); render(); }
+    catch(err){ btn.disabled=false; }
+    finally{ for(const field of [...fields,...areas]) field.disabled=false; S.busy=false; } };
 }
 function stopSheet(){
-  const s=S.session, tg=sessionTarget(); const draft=load("stopDraft",{});
+  const s=S.session, tg=sessionTarget(), key=userKey("stopDraft."+s.id), draft=load(key,{});
   const isAct=!!s.activity_id; let choice=null;
   openSheet(`<h2>做到哪了？</h2>
     <textarea class="f" id="s-note" placeholder="${isAct?"随便写一句，也可以不写":"一句话就行，比如：提交了，求职信还差最后一段"}">${esc(draft.note||"")}</textarea>
@@ -401,37 +492,44 @@ function stopSheet(){
     <div class="chips" style="align-items:center"><span class="sub">这次感觉怎么样？</span><button type="button" class="chip" data-fb="5">👍</button><button type="button" class="chip" data-fb="1">👎</button></div>
     <p class="err" id="s-err"></p>
     <button class="btn primary" id="s-go" disabled>确定</button>
-    <button class="btn" data-act="close-sheet">回去接着做</button>`);
-  const card=$("#sheet-card"); let mins=20, day=1, fb=null;
-  const keep=()=>save("stopDraft",{note:$("#s-note").value,next:$("#s-next")?$("#s-next").value:""});
-  card.addEventListener("input",keep);
-  card.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{ choice=b.dataset.c; card.querySelectorAll("[data-c]").forEach(x=>x.setAttribute("aria-pressed",x===b));
+    <button class="btn" data-act="close-sheet">回去接着做</button>`,{type:"stop",id:s.id});
+  const card=$("#sheet-card"); let mins=draft.mins??20, day=draft.day??1, fb=draft.fb??null;
+  const go=$("#s-go"), noteInput=$("#s-note"), nextInput=$("#s-next"), errorText=$("#s-err");
+  const keep=()=>save(key,{note:noteInput.value,next:nextInput?.value||"",choice,mins,day,fb});
+  noteInput.oninput=keep; if(nextInput) nextInput.oninput=keep;
+  const moreMinutes=()=>Math.min(600,Math.max(s.planned_min,Math.ceil((Date.now()-Date.parse(s.started_at))/60000))+20);
+  const pickChoice=()=>{ card.querySelectorAll("[data-c]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.c===choice));
     if($("#later")) $("#later").hidden=choice!=="later";
-    const end=new Date(new Date(s.started_at).getTime()+(s.planned_min+20)*60000), sl=sleepAt();
+    const end=new Date(Date.parse(s.started_at)+moreMinutes()*60000), sl=sleepAt();
     $("#s-warn").innerHTML=choice==="more"&&end>sl?`<div class="warnbox">再做 20 分钟会到 ${pad(end.getHours())}:${pad(end.getMinutes())}，比你定的睡觉时间晚 ${Math.round((end-sl)/60000)} 分钟。</div>`:"";
-    $("#s-go").disabled=false; });
-  card.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{mins=+b.dataset.m;card.querySelectorAll("[data-m]").forEach(x=>x.setAttribute("aria-pressed",x===b));});
-  card.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{day=+b.dataset.d;card.querySelectorAll("[data-d]").forEach(x=>x.setAttribute("aria-pressed",x===b));});
-  card.querySelectorAll("[data-fb]").forEach(b=>b.onclick=()=>{fb=+b.dataset.fb;card.querySelectorAll("[data-fb]").forEach(x=>x.setAttribute("aria-pressed",x===b));});
-  $("#s-go").onclick=async()=>{ if(!choice) return; const go=$("#s-go"); go.disabled=true; S.busy=true;
-    const note=$("#s-note").value.trim();
+    go.disabled=!choice; };
+  card.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{ if(!S.busy){ choice=b.dataset.c; pickChoice(); keep(); } });
+  const mark=(name,value)=>card.querySelectorAll("[data-"+name+"]").forEach(b=>b.setAttribute("aria-pressed",+b.dataset[name]===value));
+  card.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{if(!S.busy){mins=+b.dataset.m;mark("m",mins);keep();}});
+  card.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{if(!S.busy){day=+b.dataset.d;mark("d",day);keep();}});
+  card.querySelectorAll("[data-fb]").forEach(b=>b.onclick=()=>{if(!S.busy){fb=+b.dataset.fb;mark("fb",fb);keep();}});
+  choice=draft.choice??null; pickChoice(); mark("m",mins); mark("d",day); mark("fb",fb);
+  go.onclick=async()=>{ if(!choice||!beginWrite()) return;
+    go.disabled=true; noteInput.disabled=true; if(nextInput) nextInput.disabled=true;
+    const note=noteInput.value.trim();
     try{
-      if(choice==="more"){ const r=await q(sb.from("sessions").update({planned_min:s.planned_min+20}).eq("id",s.id).select().single()); S.session=r; closeSheet(); render(); return; }
-      const now=new Date().toISOString();
-      if(fb){ await q(sb.from("feedback").insert({target_type:isAct?"activity":"task",target_id:isAct?s.activity_id:s.task_id,rating:fb}));
-        if(isAct&&tg.act){ const w=Math.max(.3,Math.min(3,(tg.act.weight||1)+(fb>3?.2:-.2))); await q(sb.from("activities").update({weight:w}).eq("id",tg.act.id)); tg.act.weight=w; } }
-      if(choice==="done"){
-        await q(sb.from("sessions").update({ended_at:now,outcome:"done",progress_note:note}).eq("id",s.id));
-        if(tg.task) await updTask(tg.task.id,{status:"done",done_at:now,progress_note:note||tg.task.progress_note,next_step:""});
+      if(choice==="more"){
+        S.session=await q(sb.from("sessions").update({planned_min:moreMinutes()}).eq("id",s.id).is("ended_at",null).select().single());
+        save(key,{note:noteInput.value,next:nextInput?.value||""}); closeSheet(); render(); return;
+      }
+      const later=choice==="later", date=later&&day?addDays(today(),day):null;
+      const result=await q(sb.rpc("finish_web_session",{p_id:s.id,p_outcome:choice,p_note:note,
+        p_next:later?nextInput.value.trim():"",p_min:later?mins:null,p_date:date,p_rating:fb}));
+      if(result.task) patchLocal(result.task.id,result.task);
+      if(result.activity&&tg.act) Object.assign(tg.act,result.activity);
+      if(result.session.outcome==="done"){
         toast(isAct?"做完了":"完成了：「"+tg.title+"」");
       } else {
-        const next=$("#s-next").value.trim();
-        await q(sb.from("sessions").update({ended_at:now,outcome:"later",progress_note:note,next_note:next,next_min:mins}).eq("id",s.id));
-        await updTask(tg.task.id,{status:"todo",progress_note:note,next_step:next,est_min:mins,plan_date:day?addDays(today(),day):null});
-        toast(day?"排到"+(day===1?"明天":"后天")+"了，下次从这里接着做":"存好了，下次从这里接着做");
+        const planned=result.task?.plan_date;
+        toast(planned?"排到"+(planned===addDays(today(),1)?"明天":"后天")+"了，下次从这里接着做":"存好了，下次从这里接着做");
       }
-      save("stopDraft",{}); S.session=null; S.pick=0; closeSheet(); render();
-    }catch(e){ go.disabled=false; $("#s-err").textContent="没保存上，网络好了再点一次。"; }
+      save(key,null); S.session=null; S.rec={}; S.pick=0; closeSheet(); render();
+    }catch(e){ go.disabled=false; noteInput.disabled=false; if(nextInput) nextInput.disabled=false; errorText.textContent="没保存上，网络好了再点一次。"; }
     finally{ S.busy=false; } };
 }
 function actSheet(a){
@@ -439,104 +537,193 @@ function actSheet(a){
     <ol class="steps">${(a.steps||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ol>
     ${a.done_when?`<p class="sub">${esc(a.done_when)}</p>`:""}${a.caution?`<p class="faint">${esc(a.caution)}</p>`:""}
     <button class="btn primary" data-act="act-start" data-id="${a.id}">开始 · ${a.minutes} 分钟</button>
-    <button class="btn" data-act="close-sheet">先不</button>`);
+    <button class="btn" data-act="close-sheet">先不</button>`,{type:"activity",id:a.id});
 }
 function replanSheet(){
   const left=Math.max(0,minsLeftToSleep()), ranked=rank().filter(r=>r.kind==="task").map(r=>r.item.id);
+  const td=today(), dueToday=t=>t.due_at&&ymd(new Date(t.due_at))===td;
+  const key=userKey("replanDraft."+td), draft=load(key,{});
   const open=todayOpen().sort((a,b)=>ranked.indexOf(a.id)-ranked.indexOf(b.id));
-  let used=0; const plan=open.map(t=>{ const m=t.est_min||30, dueToday=t.due_at&&ymd(new Date(t.due_at))===today();
-    const keep=dueToday||used+m<=left; if(keep) used+=m; return {t,keep}; });
+  let used=open.reduce((sum,t)=>sum+(dueToday(t)?t.est_min||30:0),0);
+  const plan=open.map(t=>{ const m=t.est_min||30, fixed=dueToday(t);
+    if(fixed) return {t,keep:true,fixed};
+    const keep=draft[t.id]??(used+m<=left); if(keep) used+=m; return {t,keep,fixed}; });
   openSheet(`<h2>今天排不下了</h2><p class="sub">睡前还有 ${fmtMin(left)}。这样挪就能做完：</p>
     <div class="list" id="rp">${plan.map((p,i)=>`<button class="row" data-i="${i}"><span class="dot" style="background:${areaColor(p.t.area)}"></span><span class="t">${esc(p.t.title)}</span><span class="sub" data-lab>${p.keep?"今天做":"挪到明天"}</span></button>`).join("")}</div>
     <p class="faint">今天截止的不动。挪走的明天会排在前面。点某一行可以自己改。</p>
-    <button class="btn primary" id="rp-go">就这样排</button><button class="btn" data-act="close-sheet">先不改</button>`);
-  $("#rp").querySelectorAll("[data-i]").forEach(b=>b.onclick=()=>{const p=plan[+b.dataset.i];p.keep=!p.keep;b.querySelector("[data-lab]").textContent=p.keep?"今天做":"挪到明天";});
-  $("#rp-go").onclick=async()=>{ $("#rp-go").disabled=true; const tm=addDays(today(),1);
-    try{ for(const p of plan) if(!p.keep) await updTask(p.t.id,{plan_date:tm}); closeSheet(); toast("排好了"); render(); }catch(e){ $("#rp-go").disabled=false; } };
+    <button class="btn primary" id="rp-go">就这样排</button><button class="btn" data-act="close-sheet">先不改</button>`,{type:"replan",day:td});
+  $("#rp").querySelectorAll("[data-i]").forEach(b=>{const p=plan[+b.dataset.i]; b.disabled=!!p.fixed;
+    b.onclick=()=>{ if(S.busy) return; p.keep=!p.keep; b.querySelector("[data-lab]").textContent=p.keep?"今天做":"挪到明天";
+      draft[p.t.id]=p.keep; save(key,draft); }; });
+  $("#rp-go").onclick=async()=>{ if(!beginWrite()) return;
+    const go=$("#rp-go"); go.disabled=true;
+    try{
+      const move=plan.filter(p=>!p.keep).map(p=>p.t.id);
+      if(move.length){
+        const updated=await q(sb.from("tasks").update({plan_date:addDays(td,1)}).in("id",move).eq("plan_date",td).select());
+        updated.forEach(t=>patchLocal(t.id,t));
+      }
+      save(key,null); closeSheet(); toast("排好了"); render();
+    }catch(e){ go.disabled=false; }finally{ S.busy=false; } };
 }
 function settingsSheet(){
-  const st=S.settings||{};
+  const st=S.settings||{}, key=userKey("settingsDraft"), draft=load(key,{});
   openSheet(`<h2>设置</h2>
-    <div class="grid2"><div><p class="fl">一天从几点开始</p><input class="f" type="time" id="st-start" value="${(st.day_start||"08:00").slice(0,5)}"></div>
-    <div><p class="fl">几点睡觉</p><input class="f" type="time" id="st-sleep" value="${(st.sleep_time||"23:30").slice(0,5)}"></div></div>
+    <div class="grid2"><div><p class="fl">一天从几点开始</p><input class="f" type="time" id="st-start" value="${esc(draft.start??(st.day_start||"08:00").slice(0,5))}"></div>
+    <div><p class="fl">几点睡觉</p><input class="f" type="time" id="st-sleep" value="${esc(draft.sleep??(st.sleep_time||"23:30").slice(0,5))}"></div></div>
     <button class="btn" id="st-save">保存作息</button>
     <div style="border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px">
       <p class="fl">手机快捷指令的钥匙</p>
       <p class="sub">给 Siri、手表、耳机记东西用，不是你的密码。${st.device_key_hash?"已经生成过。重新生成后，旧钥匙立刻失效。":"还没生成。"}</p>
       <div id="keyout"></div><button class="btn" id="st-key">${st.device_key_hash?"重新生成钥匙":"生成钥匙"}</button></div>
-    <button class="btn" id="st-out">退出登录</button>`);
-  $("#st-save").onclick=async()=>{ try{ S.settings=await q(sb.from("settings").update({day_start:$("#st-start").value,sleep_time:$("#st-sleep").value}).eq("user_id",S.user.id).select().single()); toast("作息保存了"); render(); }catch(e){} };
-  $("#st-key").onclick=async()=>{ const raw=crypto.getRandomValues(new Uint8Array(24)); const key=[...raw].map(b=>b.toString(16).padStart(2,"0")).join("");
-    const h=[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(key)))].map(b=>b.toString(16).padStart(2,"0")).join("");
-    try{ S.settings=await q(sb.from("settings").update({device_key_hash:h}).eq("user_id",S.user.id).select().single());
-      $("#keyout").innerHTML=`<div class="keybox" id="kb">${key}</div><p class="faint">只显示这一次。导入快捷指令时粘贴进去。</p><button class="btn small" id="kc">复制</button>`;
-      $("#kc").onclick=()=>navigator.clipboard.writeText(key).then(()=>toast("复制了"),()=>{const r=document.createRange();r.selectNodeContents($("#kb"));const s=getSelection();s.removeAllRanges();s.addRange(r);toast("已选中，手动复制");}); }catch(e){} };
-  $("#st-out").onclick=async()=>{ await sb.auth.signOut(); location.reload(); };
+    <button class="btn" id="st-out">退出登录</button>`,{type:"settings"});
+  const start=$("#st-start"), sleep=$("#st-sleep"), saveButton=$("#st-save"), keyButton=$("#st-key"), keyout=$("#keyout");
+  start.oninput=sleep.oninput=()=>save(key,{start:start.value,sleep:sleep.value});
+  saveButton.onclick=async()=>{
+    if(!start.value||!sleep.value||!beginWrite()) return;
+    start.disabled=sleep.disabled=saveButton.disabled=true;
+    try{
+      S.settings=await q(sb.from("settings").update({day_start:start.value,sleep_time:sleep.value}).eq("user_id",S.user.id).select().single());
+      save(key,null); toast("作息保存了"); render();
+    }catch(e){}finally{ start.disabled=sleep.disabled=saveButton.disabled=false; S.busy=false; }
+  };
+  keyButton.onclick=async()=>{
+    if(!beginWrite()) return;
+    const user=S.user;
+    keyButton.disabled=true;
+    try{
+      const raw=crypto.getRandomValues(new Uint8Array(24));
+      const hex=bytes=>[...bytes].map(b=>b.toString(16).padStart(2,"0")).join("");
+      const secret=hex(raw), hash=hex(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(secret))));
+      if(S.user!==user) return;
+      S.settings=await q(sb.from("settings").update({device_key_hash:hash}).eq("user_id",user.id).select().single());
+      keyout.innerHTML=`<div class="keybox" id="kb">${secret}</div><p class="faint">只显示这一次。导入快捷指令时粘贴进去。</p><button class="btn small" id="kc">复制</button>`;
+      $("#kc").onclick=()=>navigator.clipboard.writeText(secret).then(()=>toast("复制了"),()=>{const r=document.createRange();r.selectNodeContents($("#kb"));const s=getSelection();s.removeAllRanges();s.addRange(r);toast("已选中，手动复制");});
+    }catch(e){}finally{ keyButton.disabled=false; S.busy=false; }
+  };
+  $("#st-out").onclick=logout;
 }
 
 /* ---------- actions ---------- */
 async function startSession(data){
-  if(S.busy) return; S.busy=true;
-  try{ S.session=await q(sb.from("sessions").insert(data).select().single(),"没开始成");
-    if(data.task_id){ const t=S.tasks.find(x=>x.id===data.task_id); if(t&&t.status!=="doing") await updTask(t.id,{status:"doing"}); }
-    closeSheet(); render(); }catch(e){} finally{ S.busy=false; }
+  if(S.session||!beginWrite()) return;
+  try{
+    const result=await q(sb.rpc("start_web_session",{p_task:data.task_id??null,p_activity:data.activity_id??null,p_min:data.planned_min}),"没开始成");
+    S.session=result.session;
+    if(result.task){
+      if(S.tasks.some(t=>t.id===result.task.id)) patchLocal(result.task.id,result.task);
+      else if(result.task.status!=="dropped") S.tasks.push(result.task);
+    }
+    closeSheet(); render();
+  }catch(e){} finally{ S.busy=false; }
+}
+async function logout(){
+  if(!beginWrite()) return;
+  try{
+    const {error}=await sb.auth.signOut();
+    if(error) toast("没退出登录："+error.message);
+  }finally{ S.busy=false; }
 }
 document.addEventListener("click",async ev=>{
   const el=ev.target.closest("[data-act]"); if(!el) return; const a=el.dataset.act, id=el.dataset.id;
+  if(S.busy) return;
   if(a==="close-sheet") return closeSheet();
   if(a==="retry") return boot();
-  if(a==="logout"){ await sb.auth.signOut(); location.reload(); return; }
+  if(a==="logout") return logout();
   if(a==="energy"){ S.energy=el.dataset.v; save("energy",S.energy); S.pick=0; return render(); }
   if(a==="next"){ S.pick++; return render(); }
-  if(a==="all"){ S.view="all"; render(); scrollTo(0,0); return; }
-  if(a==="cal"){ S.view="cal"; S.cal.day=S.cal.day||today(); S.rec.day=null; render(); scrollTo(0,0); return; }
-  if(a==="cal-day"){ const v=+el.dataset.v; S.cal.day=v===0?today():addDays(S.cal.day||today(),v); render(); return; }
-  if(a==="home"){ S.view="home"; return render(); }
+  if(a==="all"||a==="home") return changeView(a);
+  if(a==="cal"){ S.rec={}; return changeView("cal"); }
+  if(a==="retry-record") return loadRecord(calendarDay());
+  if(a==="cal-day"){ const v=+el.dataset.v; S.cal.day=v===0?null:addDays(calendarDay(),v); save(userKey("calendarDay"),S.cal.day); render(); return; }
   if(a==="settings") return settingsSheet();
   if(a==="replan") return replanSheet();
   if(a==="new") return editSheet(null);
   if(a==="edit") return editSheet(S.tasks.find(t=>t.id===id));
-  if(a==="start"){ const t=S.tasks.find(x=>x.id===id); return startSession({task_id:id,planned_min:t.est_min||25}); }
+  if(a==="start"){ const t=S.tasks.find(x=>x.id===id); return startSession({task_id:id,planned_min:Math.min(600,t.est_min||25)}); }
   if(a==="act-open") return actSheet(S.acts.find(x=>x.id===id));
-  if(a==="act-start"){ const ac=S.acts.find(x=>x.id===id); return startSession({activity_id:id,planned_min:ac.minutes||10}); }
-  if(a==="adj"){ const s=S.session, m=Math.max(1,s.planned_min+(+el.dataset.v)); try{ S.session=await q(sb.from("sessions").update({planned_min:m}).eq("id",s.id).select().single()); startTick(); }catch(e){} return; }
+  if(a==="act-start"){ const ac=S.acts.find(x=>x.id===id); return startSession({activity_id:id,planned_min:Math.max(1,Math.min(600,ac.minutes||10))}); }
+  if(a==="adj"){
+    if(!S.session||!beginWrite()) return;
+    const s=S.session, m=Math.max(1,Math.min(600,s.planned_min+(+el.dataset.v)));
+    try{ S.session=await q(sb.from("sessions").update({planned_min:m}).eq("id",s.id).is("ended_at",null).select().single()); startTick(); }
+    catch(e){}finally{ S.busy=false; }
+    return;
+  }
   if(a==="stop") return stopSheet();
   if(a==="fstatus"||a==="farea"||a==="fsort"){ S.all[{fstatus:"status",farea:"area",fsort:"sort"}[a]]=el.dataset.v; save("allFilter",S.all); return render(); }
-  if(a==="del"){ const t=S.tasks.find(x=>x.id===id); const prev=t.status; try{ await updTask(id,{status:"dropped"}); closeSheet(); render();
-      toast("删掉了「"+t.title+"」",{label:"撤销",fn:async()=>{ await updTask(id,{status:prev}); render(); }}); }catch(e){} return; }
+  if(a==="del"){ const t=S.tasks.find(x=>x.id===id); const prev=t.status;
+    if(!beginWrite()) return;
+    try{ await updTask(id,{status:"dropped"}); save(userKey("taskDraft."+id),null); closeSheet(); render();
+      toast("删掉了「"+t.title+"」",{label:"撤销",fn:async()=>{
+        if(!beginWrite()) return;
+        try{
+          const restored=await updTask(id,{status:prev});
+          if(!S.tasks.some(row=>row.id===id)) S.tasks.push(restored);
+          render();
+        }catch(e){}finally{ S.busy=false; }
+      }});
+    }catch(e){}finally{ S.busy=false; } return; }
 });
 document.addEventListener("submit",async ev=>{
-  if(ev.target.id==="cap"){ ev.preventDefault(); const inp=$("#capin"), v=inp.value.trim(); if(!v) return;
-    inp.disabled=true;
-    try{ const t=await q(sb.from("tasks").insert({title:v.slice(0,300),status:"inbox",source:"web"}).select().single()); S.tasks.push(t); save("capDraft",""); toast("记下了，在“全部 › 收件箱”里"); render(); }
-    catch(e){ inp.disabled=false; } }
-  if(ev.target.id==="login"){ ev.preventDefault(); const r=await sb.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});
-    if(r.error){ $("#lerr").textContent="登录没成功："+(r.error.message.includes("Invalid")?"邮箱或密码不对":r.error.message); return; } }
+  if(ev.target.id==="cap"){ ev.preventDefault(); const inp=$("#capin"), v=inp.value.trim(); if(!v||!beginWrite()) return;
+    const btn=ev.target.querySelector('[type="submit"]'); inp.disabled=true; btn.disabled=true;
+    try{ await createTask({title:v.slice(0,300),status:"inbox",source:"web"},"capture"); save("capDraft",""); toast("记下了，在“全部 › 收件箱”里"); render(); }
+    catch(e){ inp.disabled=false; btn.disabled=false; }finally{ S.busy=false; } }
+  if(ev.target.id==="login"){
+    ev.preventDefault(); const btn=ev.target.querySelector('[type="submit"]'); if(btn.disabled) return;
+    btn.disabled=true;
+    try{
+      const r=await sb.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});
+      if(r.error) throw r.error;
+    }catch(error){ const err=$("#lerr"); if(err) err.textContent="登录没成功："+(error.message.includes("Invalid")?"邮箱或密码不对":error.message); }
+    finally{ btn.disabled=false; }
+  }
 });
 document.addEventListener("input",ev=>{
   if(ev.target.id==="capin") save("capDraft",ev.target.value);
   if(ev.target.id==="allq"){ S.all.q=ev.target.value; save("allFilter",S.all); const pos=ev.target.selectionStart; render(); const n=$("#allq"); n.focus(); n.setSelectionRange(pos,pos); }
 });
-document.addEventListener("click",async ev=>{ if(ev.target.id!=="signup") return;
-  const r=await sb.auth.signUp({email:$("#em").value.trim(),password:$("#pw").value,options:{emailRedirectTo:location.origin+location.pathname}});
-  $("#lerr").textContent=r.error?("注册没成功："+r.error.message):(r.data.session?"":"注册好了。如果收到确认邮件，点一下再回来登录。"); });
-document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("#sheet").hidden) closeSheet(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!S.busy&&!$("#sheet").hidden) closeSheet(); });
+addEventListener("scroll",()=>{ if(S.loaded&&!S.session&&!S.restoring) save(userKey("scroll."+S.view),scrollY); },{passive:true});
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") refresh(); });
 setInterval(()=>{ if(document.visibilityState==="visible"&&!S.session&&$("#sheet").hidden) refresh(); },60000);
 
 /* ---------- boot ---------- */
 // Never await Supabase calls inside onAuthStateChange: supabase-js holds a lock there and the calls deadlock.
 async function boot(){
+  if(!S.user||S.loading===S.user) return;
+  const user=S.user;
   S.loadError=false; render();
-  try{ await loadAll(); }catch(e){ S.loadError=true; }
+  try{ await readAll(); }catch(e){ if(S.user===user) S.loadError=true; }
+  if(S.user!==user) return;
   render();
+  if(!S.loaded) return;
+  S.restoring=true;
+  scrollTo(0,load(userKey("scroll."+S.view),0));
+  requestAnimationFrame(()=>{ S.restoring=false; });
   const card=new URLSearchParams(location.search).get("card"); // opened from a Shortcut nudge
-  if(card&&S.loaded){ const a=S.acts.find(x=>x.id===card); if(a) actSheet(a); else { const t=S.tasks.find(x=>x.id===card); if(t) editSheet(t); } history.replaceState(null,"",location.pathname); }
+  if(card){ const a=S.acts.find(x=>x.id===card); if(a) actSheet(a); else { const t=S.tasks.find(x=>x.id===card); if(t) editSheet(t); } history.replaceState(null,"",location.pathname); return; }
+  const panel=load(userKey("panel"),null);
+  if(panel?.type==="stop"&&S.session?.id===panel.id) stopSheet();
+  if(panel?.type==="task"&&!S.session){
+    const task=panel.id?S.tasks.find(t=>t.id===panel.id):null;
+    if(task||!panel.id) editSheet(task);
+  }
+  if(panel?.type==="settings"&&!S.session) settingsSheet();
+  if(panel?.type==="replan"&&panel.day===today()&&!S.session) replanSheet();
+  if(panel?.type==="activity"&&!S.session){
+    const activity=S.acts.find(a=>a.id===panel.id);
+    if(activity) actSheet(activity);
+  }
 }
 sb.auth.onAuthStateChange((_e,session)=>{
   const u=session?session.user:null;
   if((u&&u.id)===(S.user&&S.user.id)) return;
-  S.user=u; S.loaded=false;
+  if(!$("#sheet").hidden) closeSheet();
+  const toastBox=$("#toast"); toastBox.hidden=true; toastBox.innerHTML=""; clearTimeout(tt);
+  Object.assign(S,{user:u,loaded:false,loadError:false,tasks:[],acts:[],session:null,settings:null,rec:{},pick:0});
+  if(u){ S.view=load(userKey("view"),"home"); S.cal.day=load(userKey("calendarDay"),null); }
   if(u) setTimeout(boot,0); else render();
 });
 render();
