@@ -77,6 +77,18 @@ textarea.f{resize:vertical;min-height:70px}
 .search{display:flex;gap:8px}
 .keybox{font-family:ui-monospace,Menlo,monospace;font-size:13px;word-break:break-all;background:var(--soft);border-radius:10px;padding:10px}
 .err{color:var(--bad);font-size:14px;margin:0}
+.daynav{display:flex;align-items:center;gap:6px}
+.tlhead{display:grid;grid-template-columns:40px 1fr 1fr;gap:6px;font-size:13px;color:var(--sub);font-weight:600}
+.tl{display:grid;grid-template-columns:40px 1fr 1fr;gap:6px;position:relative}
+.hours{position:relative}
+.hours span{position:absolute;right:4px;font-size:11px;color:var(--faint);transform:translateY(-50%);font-variant-numeric:tabular-nums}
+.lane{position:relative;border-left:1px solid var(--line);background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 39px,var(--line) 39px,var(--line) 40px)}
+.blk{position:absolute;left:3px;right:3px;border-radius:7px;padding:2px 6px;font-size:12px;line-height:1.3;overflow:hidden;border:0;text-align:left;color:#fff}
+.blk.soft{background:var(--soft);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.blk b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nowline{position:absolute;left:0;right:0;border-top:2px solid var(--bad);z-index:2;pointer-events:none}
+.sum{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px}
+.sum span{display:inline-flex;align-items:center;gap:6px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -105,7 +117,7 @@ const DEFAULT_ACTIVITIES=[
 ];
 
 const S={user:null,tasks:[],acts:[],settings:null,session:null,energy:load("energy","mid"),pick:0,view:"home",
-  all:load("allFilter",{q:"",status:"todo",area:"",sort:"due"}),loaded:false,busy:false};
+  all:load("allFilter",{q:"",status:"todo",area:"",sort:"due"}),cal:{day:null},rec:{day:null,usage:[],sessions:[],events:[],loading:false},loaded:false,busy:false};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function load(k,d){try{const v=localStorage.getItem("los."+k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
@@ -199,10 +211,10 @@ function closeSheet(){ $("#sheet").hidden=true; $("#sheet-card").innerHTML=""; }
 function render(){
   const app=$("#app");
   if(!S.user){ app.innerHTML=loginView(); return; }
-  if(!S.loaded){ app.innerHTML=`<p class="empty">正在读取…</p>`; return; }
+  if(!S.loaded){ app.innerHTML=S.loadError?`<div style="margin:auto 0;display:flex;flex-direction:column;gap:12px"><p class="note">没读到你的数据，可能是网络不稳。</p><button class="btn primary" data-act="retry">重试</button><button class="btn" data-act="logout">退出登录</button></div>`:`<p class="empty">正在读取…</p>`; return; }
   if(S.session){ app.innerHTML=timerView(); startTick(); return; }
   stopTick();
-  app.innerHTML=S.view==="all"?allView():homeView();
+  app.innerHTML=S.view==="all"?allView():S.view==="cal"?calView():homeView();
 }
 function loginView(){
   return `<div style="margin:auto 0;display:flex;flex-direction:column;gap:12px">
@@ -223,7 +235,7 @@ function homeView(){
   return `
   <div class="top"><span class="date">周${WD[d.getDay()]} ${d.getMonth()+1}月${d.getDate()}日</span>
     <span><span class="sub">${left>0?"睡前还有 "+fmtMin(left):"已经过了睡觉时间"}</span>
-    <button class="iconbtn" data-act="all" aria-label="全部任务">全部</button><button class="iconbtn" data-act="settings" aria-label="设置">设置</button></span></div>
+    <button class="iconbtn" data-act="cal" aria-label="日历">日历</button><button class="iconbtn" data-act="all" aria-label="全部任务">全部</button><button class="iconbtn" data-act="settings" aria-label="设置">设置</button></span></div>
   <div class="chips" role="group" aria-label="现在的状态">${ENERGY.map(([k,l])=>`<button class="chip" data-act="energy" data-v="${k}" aria-pressed="${S.energy===k}">${l}</button>`).join("")}</div>
   ${over?`<button class="warnbox" data-act="replan" style="text-align:left;border:0">今天排的事比睡前剩的时间多 ${fmtMin(planned-left)}。点这里一键重排</button>`:""}
   ${pick?focusCard(pick,ranked.length):`<div class="focus"><span class="label">现在没什么要做的</span><p class="note">在下面写一句，它就会出现在这里。</p></div>`}
@@ -281,6 +293,65 @@ function allView(){
     <div class="chips" role="group" aria-label="类别"><button class="chip" data-act="farea" data-v="" aria-pressed="${!f.area}">全部类别</button>${AREAS.map(([a,c])=>`<button class="chip" data-act="farea" data-v="${a}" aria-pressed="${f.area===a}"><span class="dot" style="background:${c};margin-right:6px"></span>${a}</button>`).join("")}</div>
     <div class="chips"><button class="chip" data-act="fsort" data-v="due" aria-pressed="${f.sort==="due"}">按截止排</button><button class="chip" data-act="fsort" data-v="new" aria-pressed="${f.sort==="new"}">最新的在前</button></div>
     <div class="list">${ts.length?ts.map(t=>`<button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${esc(dueText(t)||(t.plan_date?t.plan_date.slice(5).replace("-","/"):""))}</span></button>`).join(""):`<p class="empty">${ql?"没搜到，换个词试试。":"这里还没有任务。"}</p>`}</div>`;
+}
+
+/* ---------- calendar: plan vs record ---------- */
+const APP_COLORS={"抖音":"#D4537E","小红书":"#E24B4A","B站":"#378ADD","YouTube":"#A32D2D","TikTok":"#444441"};
+const appColor=a=>APP_COLORS[a]||"#888780";
+const dayStart=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d);};
+const isoDow=s=>{const g=dayStart(s).getDay();return g===0?7:g;};
+async function loadRecord(day){
+  const s=dayStart(day), e=new Date(s.getTime()+864e5), si=s.toISOString(), ei=e.toISOString();
+  S.rec.loading=true;
+  try{
+    const [usage,sessions,events]=await Promise.all([
+      q(sb.from("app_usage").select("*").lt("started_at",ei).or(`ended_at.gt.${si},ended_at.is.null`).order("started_at"),"读取记录失败"),
+      q(sb.from("sessions").select("*").lt("started_at",ei).or(`ended_at.gt.${si},ended_at.is.null`).order("started_at"),"读取记录失败"),
+      q(sb.from("events").select("*"),"读取日程失败")]);
+    S.rec={day,usage,sessions,events,loading:false};
+  }catch(err){ S.rec.loading=false; }
+  if(S.view==="cal") render();
+}
+function minsFrom(d0,t){return Math.round((t-d0)/60000);}
+function calView(){
+  const day=S.cal.day||today();
+  if(S.rec.day!==day&&!S.rec.loading) loadRecord(day);
+  const d0=dayStart(day), d1=new Date(d0.getTime()+864e5), now=new Date();
+  const plan=[], unscheduled=[];
+  for(const t of S.tasks){ if(t.plan_date!==day||t.status==="dropped") continue;
+    if(t.plan_start){ const s=hm(t.plan_start); plan.push({s,e:s+(t.est_min||30),title:t.title,color:areaColor(t.area),id:t.id,done:t.status==="done"}); }
+    else unscheduled.push(t); }
+  for(const ev of (S.rec.day===day?S.rec.events:[])){
+    const on=ev.on_date===day||(ev.repeat_days&&ev.repeat_days.includes(isoDow(day))&&(!ev.valid_from||ev.valid_from<=day)&&(!ev.valid_until||day<=ev.valid_until));
+    if(on) plan.push({s:hm(ev.start_time),e:hm(ev.end_time),title:ev.title,color:areaColor(ev.area),fixed:true}); }
+  const rec=[], perApp={}; let fun=0, work=0;
+  if(S.rec.day===day){
+    for(const u of S.rec.usage){ const st=new Date(u.started_at), en=new Date(Math.min(u.ended_at?new Date(u.ended_at):now, st.getTime()+3*36e5, d1));
+      const s=Math.max(0,minsFrom(d0,st)), e=Math.min(1440,minsFrom(d0,en)); if(e<=s) continue;
+      rec.push({s,e,title:u.app,color:appColor(u.app),open:!u.ended_at}); perApp[u.app]=(perApp[u.app]||0)+(e-s); fun+=e-s; }
+    for(const x of S.rec.sessions){ const st=new Date(x.started_at), en=x.ended_at?new Date(x.ended_at):now;
+      const s=Math.max(0,minsFrom(d0,st)), e=Math.min(1440,minsFrom(d0,en)); if(e<=s) continue;
+      const tk=S.tasks.find(t=>t.id===x.task_id), ac=S.acts.find(a=>a.id===x.activity_id);
+      rec.push({s,e,title:tk?tk.title:ac?ac.title:"做事",soft:true}); work+=e-s; }
+  }
+  const all=[...plan,...rec]; const lo=Math.min(7,...all.map(b=>Math.floor(b.s/60))), hi=Math.max(24,...all.map(b=>Math.ceil(b.e/60)));
+  const H=40, top=lo*60, px=m=>(m-top)/60*H, height=(hi-lo)*H;
+  const blk=b=>{const y=px(b.s), h=Math.max(16,px(b.e)-y-2); return `<div class="blk${b.soft||b.fixed?" soft":""}" style="top:${y}px;height:${h}px;${b.soft||b.fixed?"":"background:"+b.color}${b.fixed?";box-shadow:inset 3px 0 0 "+b.color:""}"><b>${esc(b.title)}${b.open?" · 进行中":""}</b>${h>30?`<span>${pad(Math.floor(b.s/60)%24)}:${pad(b.s%60)}–${pad(Math.floor(b.e/60)%24)}:${pad(b.e%60)} · ${b.e-b.s} 分</span>`:""}</div>`;};
+  let hrs=""; for(let h=lo+1;h<hi;h++) hrs+=`<span style="top:${(h-lo)*H}px">${pad(h%24)}:00</span>`;
+  const nowM=minsFrom(d0,now), showNow=day===today()&&nowM>=top&&nowM<=hi*60;
+  const dd=dayStart(day);
+  return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button>
+      <span class="daynav"><button class="iconbtn" data-act="cal-day" data-v="-1" aria-label="前一天">‹</button><span class="date">${dd.getMonth()+1}月${dd.getDate()}日 周${WD[dd.getDay()]}</span><button class="iconbtn" data-act="cal-day" data-v="1" aria-label="后一天">›</button></span>
+      ${day!==today()?`<button class="iconbtn" data-act="cal-day" data-v="0">今天</button>`:"<span></span>"}</div>
+    <div class="sum">${S.rec.day===day?`<span>娱乐 <b>${fmtMin(fun)}</b></span>${Object.entries(perApp).sort((a,b)=>b[1]-a[1]).map(([a,m])=>`<span><i class="dot" style="background:${appColor(a)}"></i>${esc(a)} ${m} 分</span>`).join("")}<span>做事 <b>${fmtMin(work)}</b></span>`:`<span class="sub">正在读取这一天的记录…</span>`}</div>
+    ${unscheduled.length?`<div><p class="label" style="margin:0 0 4px">计划了、没定时间</p><div class="list">${unscheduled.map(t=>`<button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${t.est_min?fmtMin(t.est_min):""}</span></button>`).join("")}</div></div>`:""}
+    <div class="tlhead"><span></span><span>计划</span><span>记录</span></div>
+    <div class="tl" style="height:${height}px">
+      <div class="hours">${hrs}</div>
+      <div class="lane">${plan.map(blk).join("")}${showNow?`<div class="nowline" style="top:${px(nowM)}px"></div>`:""}</div>
+      <div class="lane">${rec.map(blk).join("")}${showNow?`<div class="nowline" style="top:${px(nowM)}px"></div>`:""}</div>
+    </div>
+    ${S.rec.day===day&&!rec.length?`<p class="faint">这一天还没有记录。用计时器做事，或者装好快捷指令后刷视频，这里就会出现。</p>`:""}`;
 }
 
 /* ---------- sheets ---------- */
@@ -413,9 +484,13 @@ async function startSession(data){
 document.addEventListener("click",async ev=>{
   const el=ev.target.closest("[data-act]"); if(!el) return; const a=el.dataset.act, id=el.dataset.id;
   if(a==="close-sheet") return closeSheet();
+  if(a==="retry") return boot();
+  if(a==="logout"){ await sb.auth.signOut(); location.reload(); return; }
   if(a==="energy"){ S.energy=el.dataset.v; save("energy",S.energy); S.pick=0; return render(); }
   if(a==="next"){ S.pick++; return render(); }
   if(a==="all"){ S.view="all"; render(); scrollTo(0,0); return; }
+  if(a==="cal"){ S.view="cal"; S.cal.day=S.cal.day||today(); S.rec.day=null; render(); scrollTo(0,0); return; }
+  if(a==="cal-day"){ const v=+el.dataset.v; S.cal.day=v===0?today():addDays(S.cal.day||today(),v); render(); return; }
   if(a==="home"){ S.view="home"; return render(); }
   if(a==="settings") return settingsSheet();
   if(a==="replan") return replanSheet();
@@ -450,13 +525,19 @@ document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==
 setInterval(()=>{ if(document.visibilityState==="visible"&&!S.session&&$("#sheet").hidden) refresh(); },60000);
 
 /* ---------- boot ---------- */
-sb.auth.onAuthStateChange(async (_e,session)=>{
+// Never await Supabase calls inside onAuthStateChange: supabase-js holds a lock there and the calls deadlock.
+async function boot(){
+  S.loadError=false; render();
+  try{ await loadAll(); }catch(e){ S.loadError=true; }
+  render();
+  const card=new URLSearchParams(location.search).get("card"); // opened from a Shortcut nudge
+  if(card&&S.loaded){ const a=S.acts.find(x=>x.id===card); if(a) actSheet(a); else { const t=S.tasks.find(x=>x.id===card); if(t) editSheet(t); } history.replaceState(null,"",location.pathname); }
+}
+sb.auth.onAuthStateChange((_e,session)=>{
   const u=session?session.user:null;
   if((u&&u.id)===(S.user&&S.user.id)) return;
-  S.user=u; S.loaded=false; render();
-  if(u){ try{ await loadAll(); }catch(e){} render();
-    const card=new URLSearchParams(location.search).get("card"); // opened from a Shortcut nudge
-    if(card){ const a=S.acts.find(x=>x.id===card); if(a) actSheet(a); else { const t=S.tasks.find(x=>x.id===card); if(t) editSheet(t); } history.replaceState(null,"",location.pathname); } }
+  S.user=u; S.loaded=false;
+  if(u) setTimeout(boot,0); else render();
 });
 render();
 })();
