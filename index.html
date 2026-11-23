@@ -206,13 +206,12 @@ function render(){
 }
 function loginView(){
   return `<div style="margin:auto 0;display:flex;flex-direction:column;gap:12px">
-    <h1 class="title">Life OS</h1><p class="sub">用邮箱登录。第一次用请点“注册”。</p>
+    <h1 class="title">Life OS</h1><p class="sub">用你注册时的邮箱和密码登录。</p>
     <form id="login" style="display:flex;flex-direction:column;gap:10px">
       <input class="f" id="em" type="email" autocomplete="email" placeholder="邮箱" required>
       <input class="f" id="pw" type="password" autocomplete="current-password" placeholder="密码（至少 8 位）" minlength="8" required>
       <p class="err" id="lerr"></p>
       <button class="btn primary" type="submit">登录</button>
-      <button class="btn" type="button" id="signup">注册</button>
     </form></div>`;
 }
 function homeView(){
@@ -444,7 +443,7 @@ document.addEventListener("input",ev=>{
   if(ev.target.id==="allq"){ S.all.q=ev.target.value; save("allFilter",S.all); const pos=ev.target.selectionStart; render(); const n=$("#allq"); n.focus(); n.setSelectionRange(pos,pos); }
 });
 document.addEventListener("click",async ev=>{ if(ev.target.id!=="signup") return;
-  const r=await sb.auth.signUp({email:$("#em").value.trim(),password:$("#pw").value});
+  const r=await sb.auth.signUp({email:$("#em").value.trim(),password:$("#pw").value,options:{emailRedirectTo:location.origin+location.pathname}});
   $("#lerr").textContent=r.error?("注册没成功："+r.error.message):(r.data.session?"":"注册好了。如果收到确认邮件，点一下再回来登录。"); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("#sheet").hidden) closeSheet(); });
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") refresh(); });
