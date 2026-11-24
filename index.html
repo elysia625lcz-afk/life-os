@@ -227,6 +227,38 @@ progress{display:block;width:100%;accent-color:#378ADD;margin-top:5px}
   .focus-hero::before,.timer-paper::before,.hero-swapped{animation:none}
   .timer-paper .ring-fill{transition:none}
 }
+/* School assignments */
+.school-nav{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.school-overdue{display:block;text-align:left;border:0;width:100%;color:var(--bad);
+  background:color-mix(in srgb,var(--bad) 10%,var(--card))}
+.school-count{margin:0}
+.school-summary{display:flex;align-items:center;justify-content:space-between;gap:4px 8px;flex-wrap:wrap;min-height:36px}
+.school-summary .chip{padding-inline:9px}
+.school-course{padding:12px;border-inline-start:4px solid var(--course-color);min-width:0}
+.school-course summary{cursor:pointer;overflow-wrap:anywhere}
+.school-heading{display:inline-flex;gap:4px 10px;flex-wrap:wrap;align-items:baseline;max-width:calc(100% - 22px);vertical-align:top}
+.school-estimate{display:inline-flex;gap:3px 8px;flex-wrap:wrap;align-items:baseline;font-variant-numeric:tabular-nums}
+.school-course-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.school-forecast{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.school-forecast .f{width:76px;padding:4px 6px}
+.school-forecast strong{min-width:6ch;font-variant-numeric:tabular-nums}
+.school-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:6px;padding:6px 4px;
+  border-top:1px solid var(--line);border-radius:6px}
+.school-row .iconbtn,.school-outline-row .iconbtn{min-height:44px}
+.school-check{display:grid;place-items:center;min-height:44px;cursor:pointer}
+.school-check input{width:20px;height:20px;accent-color:var(--primary);cursor:pointer}
+.school-item{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere}
+.school-late{background:color-mix(in srgb,var(--bad) 10%,var(--card));border-color:transparent}
+.school-late .school-title,.school-late .school-due,.school-calendar-late{color:var(--bad)}
+.school-submitted{background:var(--soft)}
+.school-submitted .school-title{text-decoration:line-through;color:var(--faint)}
+.school-outline-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(76px,25%) auto;gap:6px;align-items:end}
+.school-calendar{min-width:0}
+.school-calendar .row .sub{flex:none;max-width:45%;text-align:right}
+.week-day .school-calendar{border-top:1px solid var(--line);padding-top:6px}
+.blk.plan-done b{text-decoration:line-through}
+.blk.plan-done{filter:saturate(.35)}
+#school-import-results .steps,#school-outline-preview-result .steps{overflow-wrap:anywhere}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -256,7 +288,7 @@ const DEFAULT_ACTIVITIES=[
  {title:"听熟悉的音乐，伸展一下",minutes:10,steps:["放一首听过的、节奏平稳的歌，不刷推荐","慢慢活动肩膀、手腕和脖子","做几次胸背伸展和站姿小腿伸展","最后安静站一分钟"],done_when:"大概两首歌的时间就算完成",caution:"不追求拉到疼，不做高强度",tags:["运动"],weight:1}
 ];
 
-const S={user:null,tasks:[],acts:[],rules:[],rulesError:false,settings:null,session:null,energy:load("energy","mid"),pick:0,view:"home",
+const S={user:null,tasks:[],acts:[],rules:[],rulesError:false,outlines:[],outlineError:false,settings:null,session:null,energy:load("energy","mid"),pick:0,view:"home",
   all:load("allFilter",{q:"",status:"todo",area:"",sort:"due"}),cal:{day:null},rec:{},loaded:false,busy:false,revision:0};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -322,7 +354,7 @@ function dailyNote(group,offset=0){
 const PAGE_NOTES={
   home:["opening",0,0],all:["start",1,1],cal:["opening",2,2],inbox:["start",3,4],
   projects:["streak",4,3],routines:["streak",5,1],wishes:["tired",6,5],rules:["opening",7,6],
-  activities:["tired",8,3],timer:["start",9,4],settings:["opening",10,2]
+  activities:["tired",8,3],school:["start",10,1],timer:["start",9,4],settings:["opening",10,2]
 };
 function pageEdge(view){
   return `<div data-edge="${view}" class="page-edge">${mark((PAGE_NOTES[view][2]+3)%MARKS.length,"")}</div>`;
@@ -576,10 +608,20 @@ async function q(p,label){
   if(r.error){ toast((label||"没保存上")+"："+(r.error.message||"出错")); throw r.error; }
   return r.data;
 }
+async function readWebPages(buildQuery){
+  const all=[], limit=1000;
+  for(let offset=0;;offset+=limit){
+    const result=await buildQuery().range(offset,offset+limit-1);
+    if(result.error) throw result.error;
+    all.push(...result.data);
+    if(result.data.length<limit) return all;
+  }
+}
+const readSchoolOutlines=()=>readWebPages(()=>sb.from("course_outlines").select("*").order("course").order("category"));
 async function loadAll(){
   const user=S.user, uid=user.id, revision=S.revision;
   let [tasks,acts,settings,sessions,caps]=await Promise.all([
-    q(sb.from("tasks").select("*").neq("status","dropped").order("created_at"),"读取失败"),
+    readWebPages(()=>sb.from("tasks").select("*").neq("status","dropped").order("created_at").order("id")),
     q(sb.from("activities").select("*").order("created_at"),"读取失败"),
     q(sb.from("settings").select("*").maybeSingle(),"读取失败"),
     q(sb.from("sessions").select("*").is("ended_at",null).order("started_at",{ascending:false}).limit(1),"读取失败"),
@@ -616,8 +658,11 @@ async function loadAll(){
   let rules=S.rules, rulesError=false;
   try{rules=await q(sb.from("web_rules").select("*"),"没读到规则");}
   catch(e){rulesError=true;}
+  let outlines=S.outlines, outlineError=false;
+  try{outlines=await readSchoolOutlines();}
+  catch(e){outlineError=true;}
   if(S.user!==user||S.revision!==revision) return;
-  Object.assign(S,{tasks,acts,rules,rulesError,settings,session:sessions[0]||null});
+  Object.assign(S,{tasks,acts,rules,rulesError,outlines,outlineError,settings,session:sessions[0]||null});
   S.loaded=true;
   void readProgress();
 }
@@ -696,12 +741,13 @@ function changeView(view){
 /* ---------- views ---------- */
 function render(swapped=false){
   const app=$("#app");
+  if(S.user&&S.loaded) app.querySelectorAll("[data-school-group]").forEach(rememberSchoolGroup);
   app.classList.remove("is-desktop");
   if(!S.user){ stopTick(); app.innerHTML=loginView(); return; }
   if(!S.loaded){ app.innerHTML=S.loadError?`<div style="margin:auto 0;display:flex;flex-direction:column;gap:12px"><p class="note">没读到你的数据，可能是网络不稳。</p><button class="btn primary" data-act="retry">重试</button><button class="btn" data-act="logout">退出登录</button></div>`:`<p class="empty">正在读取…</p>`; return; }
   if(S.session){ app.innerHTML=timerView(); startTick(); return; }
   stopTick();
-  const views={all:allView,cal:calView,inbox:inboxView,projects:projectsView,routines:routineView,wishes:wishView,rules:rulesView,activities:activitiesView};
+  const views={all:allView,cal:calView,inbox:inboxView,projects:projectsView,routines:routineView,wishes:wishView,rules:rulesView,activities:activitiesView,school:schoolView};
   const desktop=!!desktopMedia?.matches, view=views[S.view];
   if(desktop) app.classList.add("is-desktop");
   if(desktop){
@@ -715,6 +761,7 @@ function render(swapped=false){
     };
     ensureRecord();
   }
+  if(S.view==="school") bindSchoolView();
   if(S.view==="projects") ensureProjectTime();
   if(S.view==="activities"&&!S.activityLikes) void loadActivityLikes();
 }
@@ -754,17 +801,18 @@ function homeView(swapped){
   const planned=open.reduce((s,t)=>s+(t.est_min||30),0);
   const over=planned>Math.max(0,left);
   const rest=open.filter(t=>!pick||pick.kind!=="task"||t.id!==pick.item.id).sort(taskOrder);
-  const showToday=load(userKey("showToday"),false);
+  const showToday=load(userKey("showToday"),false), overdue=schoolTasks().filter(t=>schoolPast(t)).length;
   return `
   <div class="top home-top"><div class="home-date"><span class="date">周${WD[d.getDay()]} ${d.getMonth()+1}月${d.getDate()}日</span>
     <span class="sub">${left>0?"睡前还有 "+fmtMin(left):"已经过了睡觉时间"}</span></div>
-    <span class="home-actions"><button class="iconbtn" data-act="cal" aria-label="日历">日历</button><button class="iconbtn" data-act="all" aria-label="全部任务">全部</button><button class="iconbtn" data-act="settings" aria-label="设置">设置</button></span></div>
+    <span class="home-actions"><button class="iconbtn" data-act="cal" aria-label="日历">日历</button><button class="iconbtn" data-act="all" aria-label="全部任务">全部</button><button class="iconbtn school-nav" data-act="school">${SCHOOL_ICON}作业</button><button class="iconbtn" data-act="settings" aria-label="设置">设置</button></span></div>
   ${pageNote("home")}
   ${pick?focusCard(pick,ranked.length,swapped):`<section class="focus focus-hero hero-empty">
     ${mark(2,"paper-mark")}<span class="hero-label">现在做</span><h1 class="title hero-title">现在没什么要做的</h1>
     <p class="note">${filter.minutes||filter.area?"没有符合时间和类别的建议。可以改一下条件。":inboxTasks().length?"先整理收件箱，或在下面记一件事。":"可以在下面记一件事，之后进收件箱整理。"}</p></section>`}
   <form class="capture" id="cap" autocomplete="off"><input id="capin" placeholder="记一下…（回车保存）" aria-label="记一下" value="${esc(load("capDraft",""))}"><button type="submit">记下</button></form>
   <div class="today-progress" id="today-progress">${progressMarkup()}</div>
+  ${overdue?`<button class="warnbox school-overdue" data-act="school-overdue">有 ${overdue} 份作业过期了</button>`:""}
   ${inboxTasks().length?`<button class="row" data-act="inbox">收件箱 ${inboxTasks().length} 条</button>`:""}
   ${over?`<button class="warnbox" data-act="replan" style="text-align:left;border:0">今天排的事比睡前剩的时间多 ${fmtMin(planned-left)}。点这里一键重排</button>`:""}
   <div class="recommend-controls">
@@ -1293,14 +1341,14 @@ function weekView(){
     <div class="week-grid">${days.map(day=>{
       const planned=S.tasks.filter(t=>t.plan_date===day&&calendarTask(t,f));
       const fixed=ready?record.events.filter(e=>eventOn(e,day)&&(!f.area||e.area===f.area)):[];
-      const items=[...planned.map(t=>({id:t.id,title:t.title,area:t.area,start:t.plan_start,act:"edit"})),
+      const items=[...planned.map(t=>({id:t.id,title:t.title,area:t.area,start:t.plan_start,act:"edit",done:t.status==="done"})),
         ...fixed.map(e=>({id:e.id,title:e.title,area:e.area,start:e.start_time,act:"event-edit"}))];
       items.sort((a,b)=>(hm(a.start)??1440)-(hm(b.start)??1440));
       const {fun,work}=ready?calendarRecords(day,record):{};
       return `<section class="focus week-day"><button class="row" data-act="cal-select-day" data-v="${day}"><strong>${day.slice(5)} 周${WD[dayStart(day).getDay()]}</strong></button>
         <div class="grid2"><div class="stack week-plan"><span class="label">计划 · ${items.length}</span>
-        ${items.length?items.map(item=>`<button class="row week-item" data-act="${item.act}" data-id="${item.id}"><i class="dot" style="background:${item.act==="edit"?areaColor(item.area):eventColor(item.area)}"></i><span class="t">${esc(item.title)}<small class="sub">${item.start?item.start.slice(0,5):"未定时间"}</small></span></button>`).join(""):`<span class="sub">${ready?"没有安排":"等待读取固定日程"}</span>`}</div>
-        <div class="stack"><span class="label">记录</span>${ready?`<span class="sub">做事 ${fmtMin(Math.round(work))}</span><span class="sub">娱乐 ${fmtMin(Math.round(fun))}</span>`:`<span class="sub">${failed?"读取失败":"正在读取…"}</span>`}</div></div></section>`;
+        ${items.length?items.map(item=>`<button class="row week-item${item.done?" done":""}" data-act="${item.act}" data-id="${item.id}"><i class="dot" style="background:${item.act==="edit"?areaColor(item.area):eventColor(item.area)}"></i><span class="t">${esc(item.title)}<small class="sub">${item.start?item.start.slice(0,5):"未定时间"}${item.done?" · 已完成":""}</small></span></button>`).join(""):`<span class="sub">${ready?"没有安排":"等待读取固定日程"}</span>`}</div>
+        <div class="stack"><span class="label">记录</span>${ready?`<span class="sub">做事 ${fmtMin(Math.round(work))}</span><span class="sub">娱乐 ${fmtMin(Math.round(fun))}</span>`:`<span class="sub">${failed?"读取失败":"正在读取…"}</span>`}</div></div>${schoolCalendar(day,f)}</section>`;
     }).join("")}</div>`;
 }
 function eventSheet(event){
@@ -1499,7 +1547,7 @@ function calView(){
   const {rec,perApp,fun,work}=calendarRecords(day,ready?record:{});
   const all=[...plan,...rec]; const lo=Math.min(7,...all.map(b=>Math.floor(b.s/60))), hi=Math.max(24,...all.map(b=>Math.ceil(b.e/60)));
   const H=40, top=lo*60, px=m=>(m-top)/60*H, height=(hi-lo)*H;
-  const blk=b=>{const y=px(b.s), h=Math.max(16,px(b.e)-y-2); return `<${b.fixed?"button":"div"} ${b.fixed?`data-act="event-edit" data-id="${b.id}"`:""} class="blk${b.soft||b.fixed?" soft":""}" style="top:${y}px;height:${h}px;${b.soft||b.fixed?"":"--block-color:"+b.color}${b.fixed?";box-shadow:inset 3px 0 0 "+b.color:""}"><b>${esc(b.title)}${b.open?" · 进行中":""}</b>${h>30?`<span>${pad(Math.floor(b.s/60)%24)}:${pad(b.s%60)}–${pad(Math.floor(b.e/60)%24)}:${pad(b.e%60)} · ${Math.round(b.minutes??b.e-b.s)} 分</span>`:""}</${b.fixed?"button":"div"}>`;};
+  const blk=b=>{const y=px(b.s), h=Math.max(16,px(b.e)-y-2); return `<${b.fixed?"button":"div"} ${b.fixed?`data-act="event-edit" data-id="${b.id}"`:""} class="blk${b.soft||b.fixed?" soft":""}${b.done?" plan-done":""}" style="top:${y}px;height:${h}px;${b.soft||b.fixed?"":"--block-color:"+b.color}${b.fixed?";box-shadow:inset 3px 0 0 "+b.color:""}"><b>${esc(b.title)}${b.open?" · 进行中":b.done?" · 已完成":""}</b>${h>30?`<span>${pad(Math.floor(b.s/60)%24)}:${pad(b.s%60)}–${pad(Math.floor(b.e/60)%24)}:${pad(b.e%60)} · ${Math.round(b.minutes??b.e-b.s)} 分</span>`:""}</${b.fixed?"button":"div"}>`;};
   let hrs=""; for(let h=lo+1;h<hi;h++) hrs+=`<span style="top:${(h-lo)*H}px">${pad(h%24)}:00</span>`;
   const nowM=wallMinutes(now), showNow=day===today()&&nowM>=top&&nowM<=hi*60;
   const dd=dayStart(day);
@@ -1509,7 +1557,8 @@ function calView(){
     ${pageNote("cal")}
     ${calendarTools()}
     <div class="sum">${ready?`<span>娱乐 <b>${fmtMin(Math.round(fun))}</b></span>${[...perApp].sort((a,b)=>b[1]-a[1]).map(([a,m])=>`<span><i class="dot" style="background:${appColor(a)}"></i>${esc(a)} ${Math.round(m)} 分</span>`).join("")}<span>做事 <b>${fmtMin(Math.round(work))}</b></span>`:failed?`<span class="sub">没读到这一天的记录。</span><button class="btn small" data-act="retry-record">重试</button>`:`<span class="sub">正在读取这一天的记录…</span>`}</div>
-    ${unscheduled.length?`<div><p class="label" style="margin:0 0 4px">计划了、没定时间</p><div class="list">${unscheduled.map(t=>`<button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${t.est_min?fmtMin(t.est_min):""}</span></button>`).join("")}</div></div>`:""}
+    ${unscheduled.length?`<div><p class="label" style="margin:0 0 4px">计划了、没定时间</p><div class="list">${unscheduled.map(t=>`<button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${t.status==="done"?"已完成":t.est_min?fmtMin(t.est_min):""}</span></button>`).join("")}</div></div>`:""}
+    ${schoolCalendar(day,f)}
     <div class="tlhead"><span></span><span>计划</span><span>记录</span></div>
     <div class="tl" style="height:${height}px">
       <div class="hours">${hrs}</div>
@@ -1517,6 +1566,682 @@ function calView(){
       <div class="lane">${rec.map(blk).join("")}${showNow?`<div class="nowline" style="top:${px(nowM)}px"></div>`:""}</div>
     </div>
     ${ready&&!rec.length?`<p class="faint">这一天还没有记录。用计时器做事，或者装好快捷指令后刷视频，这里就会出现。</p>`:""}`;
+}
+
+/* ---------- school assignments ---------- */
+const UNCLASSIFIED_COURSE="未分类课程";
+const SCHOOL_FILTER={q:"",course:"",state:"all",sort:"soon",hideSubmitted:false};
+const SCHOOL_STATES=[["all","全部"],["open","没交"],["late","已过期"],["submitted","已交"]];
+const SCHOOL_FIELDS=["school_course","grade_category","grade_weight","score","score_max","submitted_at"];
+const SCHOOL_ITEM_PREFIXES=new Set(["LAB","LABS","QUIZ","TEST","EXAM","UNIT","WEEK","TASK","PROJECT","MIDTERM","FINAL","HOMEWORK"]);
+const schoolFilter=()=>({...SCHOOL_FILTER,...load(userKey("schoolFilter"),{})});
+const schoolNumberFormat=new Intl.NumberFormat("zh-CN",{maximumFractionDigits:2});
+const schoolText=value=>value.normalize("NFKC").trim().replace(/\s+/g," ");
+const schoolKey=value=>schoolText(value).toLowerCase();
+const schoolCourseCode=/(?<![A-Z0-9])([A-Z]{2,8})[ _-]*(\d{3,4}[A-Z]?)(?![A-Z0-9])/gi;
+function courseCode(title){
+  // Blackboard commonly prefixes a course code. Avoid interpreting item names as departments.
+  const normalized=title.normalize("NFKC");
+  return [...normalized.matchAll(schoolCourseCode)].find(match=>{
+    const department=match[1].toUpperCase();
+    const suffix=normalized.slice(match.index+match[0].length).trimStart();
+    return !SCHOOL_ITEM_PREFIXES.has(department)&&
+      (match[1]===department||!match[0].includes(" ")||/^[：:]/.test(suffix));
+  });
+}
+function schoolCourse(t){
+  if(t.school_course) return t.school_course;
+  const code=courseCode(t.title);
+  return code?(code[1]+"-"+code[2]).toUpperCase():UNCLASSIFIED_COURSE;
+}
+const schoolTask=t=>visibleTask(t)&&t.kind==="deadline"&&
+  (["学校","课程"].includes(t.area)||["blackboard","school-json"].includes(t.source)||!!t.school_course);
+const schoolTasks=()=>S.tasks.filter(schoolTask);
+const schoolOutline=course=>S.outlines.filter(row=>schoolKey(row.course)===schoolKey(course));
+const schoolPast=(t,now=Date.now())=>!t.submitted_at&&dueOrder(t)<now;
+const schoolPercent=value=>schoolNumberFormat.format(value)+"%";
+function schoolColor(course){
+  const hash=Array.from(schoolKey(course)).reduce((sum,c)=>(Math.imul(sum,31)+c.codePointAt(0))>>>0,0);
+  return "hsl("+(hash*137%360)+" 52% 48%)";
+}
+const schoolFieldValues=(t,fields=SCHOOL_FIELDS)=>Object.fromEntries(fields.map(field=>[field,t?.[field]??null]));
+const schoolSame=(a,b)=>a===b||(a!=null&&b!=null&&String(a)===String(b));
+function schoolChangedFields(before,after){
+  const fields=Object.keys(after).filter(field=>!schoolSame(before[field],after[field]));
+  if(fields.includes("score")||fields.includes("score_max")) return [...new Set([...fields,"score","score_max"])];
+  return fields;
+}
+function schoolTaskPatch(id,before,after){
+  const fields=schoolChangedFields(before,after);
+  if(fields.length) return {id,before:schoolFieldValues(before,fields),after:schoolFieldValues(after,fields)};
+  return null;
+}
+function schoolCourseName(value){
+  const name=schoolText(value), code=courseCode(name.toUpperCase());
+  const normalized=code?.[0]===name.toUpperCase()?code[1]+"-"+code[2]:name;
+  return [...S.outlines.map(row=>row.course),...schoolTasks().map(schoolCourse)]
+    .find(course=>schoolKey(course)===schoolKey(normalized))??normalized;
+}
+function schoolItemTitle(t){
+  const title=t.title.normalize("NFKC"), code=courseCode(title);
+  if(!code) return t.title;
+  return (title.slice(0,code.index)+" "+title.slice(code.index+code[0].length))
+    .replace(/^[\s:：._–—\-()[\]]+|[\s:：._–—\-()[\]]+$/g,"")||t.title;
+}
+function schoolDueLabel(t,now){
+  if(!t.due_at) return "没有截止时间";
+  const due=new Date(t.due_at), day=ymd(due);
+  const days=(Date.parse(day)-Date.parse(ymd(new Date(now))))/864e5;
+  const date=days===0?"今天":days===1?"明天":days===-1?"昨天":
+    days>1&&days<=7?days+" 天后":day;
+  return date+" "+pad(due.getHours())+":"+pad(due.getMinutes());
+}
+const schoolLateLabel=(t,now)=>`已过期 ${Math.floor((now-dueOrder(t))/864e5)} 天`;
+function schoolEstimate(tasks,outline,forecast){
+  if(!outline.length) return {message:"缺少大纲"};
+  const categories=new Map(outline.map(row=>[schoolKey(row.category),{total:+row.weight,explicit:0,items:[]}]));
+  let total=outline.reduce((sum,row)=>sum+Number(row.weight),0);
+  let known=0, earned=0;
+  const count=(t,weight)=>{
+    if(t.score==null||t.score_max==null||t.score_max<=0) return;
+    known+=weight;
+    earned+=weight*(t.score/t.score_max);
+  };
+  for(const t of tasks){
+    const category=t.grade_category&&categories.get(schoolKey(t.grade_category));
+    if(t.grade_weight!=null){
+      const weight=Number(t.grade_weight);
+      if(category) category.explicit+=weight;
+      else total+=weight;
+      count(t,weight);
+    }else if(category) category.items.push(t);
+  }
+  if(total>100+1e-8||[...categories.values()].some(c=>c.explicit>c.total+1e-8)){
+    return {message:"权重超出 100% 或类别占比"};
+  }
+  for(const {total,explicit,items} of categories.values()){
+    if(!items.length) continue;
+    const weight=Math.max(0,total-explicit)/items.length;
+    for(const t of items) count(t,weight);
+  }
+  return {message:known>0?schoolPercent(earned/known*100):"暂无已出分的加权作业",known,
+    final:earned+Math.max(0,100-known)*forecast/100,
+    unweighted:tasks.filter(t=>t.score!=null&&t.grade_weight==null&&
+      (!t.grade_category||!categories.has(schoolKey(t.grade_category)))).length};
+}
+function schoolEstimateMarkup(estimate){
+  if(estimate.known==null) return `<span class="sub">${estimate.message}</span>`;
+  return `<span class="school-estimate"><strong>${estimate.known>0?"估算成绩 ":""}${estimate.message}</strong><span class="sub">已出分部分占总评的 ${schoolPercent(estimate.known)}${estimate.unweighted?` · ${estimate.unweighted} 份已出分作业缺少权重`:""}</span></span>`;
+}
+const schoolForecastKey=course=>userKey("schoolForecast."+schoolKey(course));
+function schoolForecastValue(course){
+  const value=load(schoolForecastKey(course),"80");
+  return value!==""&&Number(value)>=0&&Number(value)<=100?Number(value):80;
+}
+function schoolRow(t,now){
+  const late=schoolPast(t,now), submitted=!!t.submitted_at, title=schoolItemTitle(t);
+  return `<div class="school-row${late?" school-late":submitted?" school-submitted":""}" data-school-id="${esc(t.id)}">
+    <label class="school-check"><input type="checkbox" data-school-submit="${esc(t.id)}" aria-label="已交 ${esc(title)}" ${submitted?"checked":""}></label>
+    <div class="school-item"><strong class="school-title">${esc(title)}</strong>
+      <span class="sub school-due">${esc(schoolDueLabel(t,now))}${late?" · "+schoolLateLabel(t,now):submitted?" · 已交":""}</span>
+      <span class="sub">${t.grade_category?esc(t.grade_category)+" · ":""}${t.score!=null?esc(t.score)+" / "+esc(t.score_max):"未出分"}${t.grade_weight!=null?" · "+schoolPercent(t.grade_weight):""}</span></div>
+    <button class="iconbtn" data-act="school-edit" data-id="${esc(t.id)}" aria-label="编辑 ${esc(title)}">编辑</button></div>`;
+}
+function schoolView(){
+  const tasks=schoolTasks(), f=schoolFilter(), now=Date.now(), groups=new Map();
+  for(const row of [...tasks.map(t=>[schoolCourse(t),t]),...S.outlines.map(o=>[o.course,null])]){
+    const [course,task]=row, key=schoolKey(course);
+    if(!groups.has(key)) groups.set(key,{course,tasks:[]});
+    if(task) groups.get(key).tasks.push(task);
+  }
+  const selectedCourse=groups.has(f.course)?f.course:"";
+  const groupsShown=[...groups].filter(([key])=>!selectedCourse||selectedCourse===key)
+    .sort(([,a],[,b])=>a.course.localeCompare(b.course,"zh-CN",{numeric:true}));
+  const late=tasks.filter(t=>schoolPast(t,now)).length, submitted=tasks.filter(t=>t.submitted_at).length;
+  const rows=groupsShown.flatMap(([key,group])=>{
+    const {course}=group, outline=schoolOutline(course), forecast=schoolForecastValue(course);
+    const estimate=S.outlineError?{message:"大纲暂未读到"}:schoolEstimate(group.tasks,outline,forecast);
+    const visible=group.tasks.filter(t=>
+      (!f.hideSubmitted||!t.submitted_at)&&
+      (f.state==="all"||(f.state==="late"?schoolPast(t,now):f.state==="submitted"?!!t.submitted_at:!t.submitted_at))&&
+      matchesSearch([t.title,course,t.grade_category||""].join(" "),f.q))
+      .sort((a,b)=>{
+        const left=dueOrder(a), right=dueOrder(b);
+        if(left===right) return a.title.localeCompare(b.title,"zh-CN",{numeric:true});
+        if(!Number.isFinite(left)) return 1;
+        if(!Number.isFinite(right)) return -1;
+        return f.sort==="late"?right-left:left-right;
+      });
+    if(!visible.length&&(group.tasks.length||f.state!=="all"||f.q.trim())) return [];
+    const collapsed=load(userKey("schoolGroup."+key),false);
+    return [`<section class="focus school-course" style="--course-color:${schoolColor(course)}">
+      <details data-school-group="${esc(key)}" ${collapsed?"":"open"}>
+        <summary><span class="school-heading"><strong>${esc(course)}</strong><span class="sub">已交 ${group.tasks.filter(t=>t.submitted_at).length} / ${group.tasks.length}</span>
+        ${schoolEstimateMarkup(estimate)}</span></summary>
+        <div class="school-course-tools">${actionButton("school-outline","课程大纲",course)}
+        ${estimate.known==null?"":`<label class="school-forecast sub">剩余拿到 <input class="f" type="number" min="0" max="100" step="any" inputmode="decimal" data-school-forecast="${esc(course)}" value="${esc(load(schoolForecastKey(course),"80"))}">%，最终 <strong data-school-final>${schoolPercent(estimate.final)}</strong></label>`}</div>
+        ${visible.map(t=>schoolRow(t,now)).join("")||'<p class="empty">这门课还没有作业。</p>'}
+      </details></section>`];
+  });
+  return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button><h1 class="title">作业</h1>
+    <button class="iconbtn" data-act="school-import">导入</button></div>
+    ${pageNote("school")}
+    <div class="school-summary"><p class="sub school-count" aria-live="polite">共 ${tasks.length} 份 · 已交 ${submitted} 份 · 过期 ${late} 份</p>
+    ${load(userKey("schoolUndo"),null)?actionButton("school-undo","撤销上次变更"):""}</div>
+    ${S.outlineError?`<p class="warnbox">课程大纲暂未读到。 ${actionButton("school-retry","重试")}</p>`:""}
+    <input class="f" id="schoolq" type="search" aria-label="搜索作业" placeholder="搜索作业、课程或类别" value="${esc(f.q)}">
+    <div class="grid2"><label><span class="fl">课程</span><select class="f" id="school-course-filter">
+      ${selectOptions([["","全部课程"],...[...groups].map(([key,g])=>[key,g.course])],selectedCourse)}</select></label>
+      <label><span class="fl">截止时间排序</span><select class="f" id="school-sort">
+      ${selectOptions([["soon","最早截止在前"],["late","最晚截止在前"]],f.sort)}</select></label></div>
+    <div class="chips">${selectedButtons("school-filter",SCHOOL_STATES,f.state,"","提交状态")}
+      <button class="chip" data-act="school-hide" aria-pressed="${f.hideSubmitted}">隐藏已交</button></div>
+    ${rows.join("")||`<p class="empty">${groups.size?"没有符合筛选条件的作业。":"还没有学校作业。Blackboard 日历同步后会出现在这里，也可以导入作业 JSON。"}</p>`}`;
+}
+function rememberSchoolGroup(group){
+  save(userKey("schoolGroup."+group.getAttribute("data-school-group")),!group.open);
+}
+function bindSchoolView(){
+  document.querySelectorAll("[data-school-group]").forEach(group=>{
+    group.ontoggle=()=>{if(group.isConnected) rememberSchoolGroup(group);};
+  });
+}
+function schoolCalendar(day,filter){
+  const now=Date.now(), tasks=schoolTasks().filter(t=>t.due_at&&ymd(new Date(t.due_at))===day&&
+    (!filter.area||t.area===filter.area)&&(!filter.hideDone||!t.submitted_at)).sort((a,b)=>dueOrder(a)-dueOrder(b));
+  if(!tasks.length) return "";
+  return `<section class="school-calendar"><span class="label">作业截止 · ${tasks.length}</span>
+    ${tasks.map(t=>`<button class="row week-item${t.submitted_at?" done":""}" data-act="school-edit" data-id="${esc(t.id)}">
+      <i class="dot" style="background:${schoolColor(schoolCourse(t))}"></i><span class="t">${esc(schoolItemTitle(t))}</span>
+      <span class="sub${schoolPast(t,now)?" school-calendar-late":""}">${schoolDueLabel(t,now).slice(-5)} · ${t.submitted_at?"已交":schoolPast(t,now)?"已过期":"没交"}</span></button>`).join("")}</section>`;
+}
+const SCHOOL_ICON='<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10 5c-2-1.8-5-2.2-8-1.2v11c3-1 6-.6 8 1.2 2-1.8 5-2.2 8-1.2v-11c-3-1-6-.6-8 1.2zM10 5v11"/></svg>';
+
+function schoolNumber(value,label,max=100,min=0){
+  if(typeof value!=="number"||!Number.isFinite(value)||value<min||value>max) throw new Error(label+"超出范围或不是数字。");
+  return value;
+}
+function schoolName(value,label,max=120){
+  if(typeof value!=="string"||!schoolText(value)||Array.from(schoolText(value)).length>max) throw new Error(label+"需填写 1–"+max+" 个字符。");
+  return schoolText(value);
+}
+function schoolScore(score,max){
+  if(score==null) return {score:null,score_max:null};
+  max=schoolNumber(max,"满分",Number.MAX_SAFE_INTEGER,Number.MIN_VALUE);
+  return {score:schoolNumber(score,"得分",max),score_max:max};
+}
+function schoolWeight(value){
+  return schoolNumber(value,"占比",100,Number.MIN_VALUE);
+}
+function requireSchoolOutline(){
+  if(S.outlineError) throw new Error("课程大纲暂未读到。请关闭窗口并重试读取。");
+}
+function schoolSaveError(error,field){
+  const msg=error.message||"请求失败";
+  if(field) field.textContent=msg;
+  else toast(msg);
+}
+async function schoolWrite(batch){
+  const result=await sb.rpc("save_school_changes",{p_tasks:batch.tasks,p_outline:batch.outline});
+  if(result.error) throw result.error;
+  return result.data;
+}
+function applySchoolChanges(result){
+  for(const task of result.tasks){
+    if(task.status==="dropped") S.tasks=S.tasks.filter(row=>row.id!==task.id);
+    else upsertLocal(task);
+  }
+  for(const row of result.outline){
+    S.outlines=S.outlines.filter(o=>o.course!==row.course||o.category!==row.category);
+    if(row.weight!=null) S.outlines.push(row);
+  }
+}
+function invertSchoolChanges(batch,result){
+  return {
+    tasks:batch.tasks.map(change=>{
+      if(!change.create) return {id:change.id,before:change.after,after:change.before};
+      const task=result.tasks.find(t=>t.id===change.id);
+      return {id:change.id,version:task.updated_at,before:{...change.after,status:"todo"},after:{...change.after,status:"dropped"}};
+    }),
+    outline:batch.outline.map(change=>({...change,before:change.after,after:change.before}))
+  };
+}
+async function commitSchoolChanges(batch,{controls=[],errorField=null,message="作业变更已保存",onSaved=()=>{},undo=false}={}){
+  if(!batch.tasks.length&&!batch.outline.length){onSaved();toast("没有需要保存的变更。");return;}
+  if(!beginWrite()) return;
+  const user=S.user;
+  for(const field of controls) field.disabled=true;
+  if(errorField) errorField.textContent="";
+  try{
+    const result=await schoolWrite(batch);
+    if(S.user!==user) return;
+    applySchoolChanges(result);
+    save(userKey("schoolUndo"),undo?null:invertSchoolChanges(batch,result));
+    onSaved();
+    render();
+    toast(message,undo?undefined:{label:"撤销",fn:schoolUndo});
+  }catch(error){
+    if(S.user===user) schoolSaveError(error,errorField);
+  }finally{
+    for(const field of controls) field.disabled=false;
+    S.busy=false;
+  }
+}
+function schoolUndo(){
+  const batch=load(userKey("schoolUndo"),null);
+  if(batch) return commitSchoolChanges(batch,{undo:true,message:"已撤销作业变更"});
+}
+function toggleSchoolSubmission(field){
+  const t=schoolTasks().find(t=>t.id===field.getAttribute("data-school-submit"));
+  if(!t) return;
+  const checked=field.checked;
+  field.checked=!!t.submitted_at;
+  if(S.busy||checked===field.checked) return;
+  const key=userKey("schoolSubmitPending."+t.id), previous=load(key,null);
+  const before=schoolFieldValues(t,["submitted_at"]);
+  const after={submitted_at:checked?
+    (previous?.before.submitted_at===before.submitted_at?previous.after.submitted_at:null)||new Date().toISOString():null};
+  save(key,{before,after});
+  return commitSchoolChanges({tasks:[{id:t.id,before,after}],outline:[]},{controls:[field],
+    onSaved:()=>save(key,null),message:checked?"已标记为已交":"已标记为没交"});
+}
+function schoolEdit(t){
+  if(!t) return;
+  const key=userKey("schoolEdit."+t.id);
+  const fields=["school_course","grade_category","grade_weight","score","score_max"];
+  const before=schoolFieldValues(t,fields);
+  const draft=load(key,{before,course:schoolCourse(t),category:before.grade_category??"",
+    weight:before.grade_weight??"",score:before.score??"",max:before.score_max??""});
+  const stale=schoolChangedFields(draft.before,before).length>0;
+  const ids={course:"school-edit-course",category:"school-edit-category",weight:"school-edit-weight",score:"school-edit-score",max:"school-edit-max"};
+  openSheet(`<h2>编辑作业</h2><p class="note">${esc(schoolItemTitle(t))}</p>
+    <form id="school-edit-form" class="stack">
+      <label><span class="fl">课程</span><input id="${ids.course}" class="f" maxlength="120" required value="${esc(draft.course)}"></label>
+      <label><span class="fl">评分类别</span><input id="${ids.category}" class="f" list="school-category-options" maxlength="120" value="${esc(draft.category)}"></label>
+      <datalist id="school-category-options"></datalist>
+      <label><span class="fl">单独占总评百分比（可留空）</span><input id="${ids.weight}" class="f" type="number" min="0" max="100" step="any" value="${esc(draft.weight)}"></label>
+      <div class="grid2"><label><span class="fl">得分</span><input id="${ids.score}" class="f" type="number" min="0" step="any" value="${esc(draft.score)}"></label>
+      <label><span class="fl">满分</span><input id="${ids.max}" class="f" type="number" min="0" step="any" value="${esc(draft.max)}"></label></div>
+      <p class="sub">两项分数都留空表示未出分。</p><p class="err" id="school-edit-error" role="alert"></p>
+      ${stale?'<button type="button" class="chip" id="school-edit-reset">放弃草稿，载入已保存值</button>':""}
+      <div class="grid2"><button class="btn" type="button" data-act="close-sheet">关闭</button><button class="btn primary" type="submit">保存</button></div>
+    </form>`,{type:"school-edit",id:t.id});
+  const form=$("#school-edit-form"), errorField=$("#school-edit-error");
+  const options=()=>{$("#school-category-options").innerHTML=schoolOutline(draft.course)
+    .map(o=>`<option value="${esc(o.category)}"></option>`).join("");};
+  function keep(){
+    for(const [name,id] of Object.entries(ids)) draft[name]=$("#"+id).value;
+    save(key,draft);options();
+  }
+  options();
+  form.oninput=keep;
+  if(stale) $("#school-edit-reset").onclick=()=>{save(key,null);schoolEdit(t);};
+  form.onsubmit=ev=>{
+    ev.preventDefault();
+    if(S.busy) return;
+    keep();
+    try{
+      const course=schoolCourseName(schoolName(draft.course,"课程"));
+      const category=draft.category.trim()?schoolName(draft.category,"评分类别"):null;
+      if((draft.score==="")!==(draft.max==="")) throw new Error("得分和满分需一起填写。");
+      const data={school_course:schoolKey(course)===schoolKey(schoolCourse(t))?draft.before.school_course:course,grade_category:category,grade_weight:draft.weight===""?null:schoolWeight(Number(draft.weight)),
+        ...schoolScore(draft.score===""?null:Number(draft.score),Number(draft.max))};
+      const patch=schoolTaskPatch(t.id,draft.before,data);
+      void commitSchoolChanges({tasks:patch?[patch]:[],outline:[]},
+        {controls:[...form.querySelectorAll("input,button")],errorField,onSaved:()=>{save(key,null);closeSheet();}});
+    }catch(error){schoolSaveError(error,errorField);}
+  };
+}
+function parseSchoolOutline(source){
+  const entries=[];
+  for(const part of source.normalize("NFKC").split(/[\n;,]/)){
+    const segments=part.split("%").slice(0,-1);
+    for(const segment of segments){
+      const match=/(?<![\d.])(-?\d+(?:\.\d+)?)\s*$/.exec(segment);
+      if(!match) continue;
+      const category=segment.slice(0,match.index).replace(/^[\s|*•–—-]+|[\s|*:：=–—]+$/g,"");
+      if(!category) continue;
+      entries.push({category:schoolName(category,"大纲类别"),weight:schoolWeight(Number(match[1]))});
+    }
+  }
+  if(!entries.length) throw new Error("没识别出类别和百分比。可用「Labs 30%」格式。");
+  validateSchoolOutline(entries);
+  return entries;
+}
+function validateSchoolOutline(entries){
+  const keys=entries.map(row=>schoolKey(row.category));
+  if(new Set(keys).size!==keys.length) throw new Error("同一门课的大纲类别不能重复。");
+  if(entries.reduce((sum,row)=>sum+row.weight,0)>100+1e-8) throw new Error("同一门课的大纲权重合计不能超过 100%。");
+}
+function schoolOutlineChanges(course,before,after,remove=false){
+  const previous=new Map(before.map(row=>[schoolKey(row.category),row]));
+  const next=new Map(after.map(row=>[schoolKey(row.category),row]));
+  const changes=after.flatMap(row=>{
+    const old=previous.get(schoolKey(row.category));
+    return schoolSame(old?.weight,row.weight)?[]:[{course:old?.course??course,
+      category:old?.category??row.category,before:old?Number(old.weight):null,after:row.weight}];
+  });
+  if(remove) for(const [key,row] of previous) if(!next.has(key)){
+    changes.push({course:row.course??course,category:row.category,before:Number(row.weight),after:null});
+  }
+  return changes;
+}
+function schoolOutlineSheet(course){
+  const key=userKey("schoolOutline."+schoolKey(course));
+  const baseline=schoolOutline(course);
+  const draft=load(key,{baseline,rows:baseline.map(({category,weight})=>({category,weight})),paste:"",preview:null});
+  const stale=!S.outlineError&&schoolOutlineChanges(course,draft.baseline,baseline,true).length>0;
+  openSheet(`<h2>课程大纲 · ${esc(course)}</h2>
+    <form id="school-outline-form" class="stack">
+      <div class="stack" id="school-outline-rows">
+      ${draft.rows.map((row,i)=>`<div class="school-outline-row">
+        <label><span class="fl">类别</span><input class="f" maxlength="120" data-outline-category="${i}" value="${esc(row.category)}"></label>
+        <label><span class="fl">占比 %</span><input class="f" type="number" min="0" max="100" step="any" data-outline-weight="${i}" value="${esc(row.weight)}"></label>
+        <button type="button" class="iconbtn" data-outline-remove="${i}" aria-label="移除第 ${i+1} 个类别">移除</button></div>`).join("")}
+      </div>
+      ${draft.rows.length?"":'<p class="empty">还没有大纲类别。可以手动添加，或粘贴大纲文字。</p>'}
+      <button type="button" class="chip" id="school-outline-add">添加类别</button>
+      <label><span class="fl">粘贴课程大纲文字</span><textarea id="school-outline-paste" class="f" maxlength="20000" placeholder="Labs 30%，Midterm 25%">${esc(draft.paste)}</textarea></label>
+      <button type="button" class="chip" id="school-outline-preview">预览解析结果</button>
+      <div id="school-outline-preview-result" ${draft.preview?"":"hidden"}>${draft.preview?`<p class="sub">识别到 ${draft.preview.length} 个类别。核对后加入上方表格。</p>
+        <ul class="steps">${draft.preview.map(row=>`<li>${esc(row.category)} · ${schoolPercent(row.weight)}</li>`).join("")}</ul>
+        <button type="button" class="chip" id="school-outline-accept">加入表格</button>`:""}</div>
+      <p class="err" id="school-outline-error" role="alert"></p>
+      ${stale?'<button type="button" class="chip" id="school-outline-reset">放弃草稿，载入已保存值</button>':""}
+      <div class="grid2"><button type="button" class="btn" data-act="close-sheet">关闭</button>
+      <button type="submit" class="btn primary" ${S.outlineError?"disabled":""}>保存大纲</button></div>
+    </form>`,{type:"school-outline",id:course});
+  const form=$("#school-outline-form"), errorField=$("#school-outline-error");
+  const paste=$("#school-outline-paste"), preview=$("#school-outline-preview-result");
+  const refreshSheet=()=>{save(key,draft);schoolOutlineSheet(course);};
+  form.oninput=ev=>{
+    if(ev.target===paste){draft.paste=paste.value;draft.preview=null;preview.hidden=true;}
+    for(const field of ["category","weight"]){
+      const index=ev.target.getAttribute("data-outline-"+field);
+      if(index!=null) draft.rows[Number(index)][field]=ev.target.value;
+    }
+    save(key,draft);
+  };
+  if(stale) $("#school-outline-reset").onclick=()=>{save(key,null);schoolOutlineSheet(course);};
+  $("#school-outline-add").onclick=()=>{draft.rows.push({category:"",weight:""});refreshSheet();};
+  form.querySelectorAll("[data-outline-remove]").forEach(button=>button.onclick=()=>{
+    draft.rows.splice(Number(button.getAttribute("data-outline-remove")),1);refreshSheet();
+  });
+  $("#school-outline-preview").onclick=()=>{
+    try{draft.preview=parseSchoolOutline(paste.value);refreshSheet();}
+    catch(error){schoolSaveError(error,errorField);}
+  };
+  if(draft.preview) $("#school-outline-accept").onclick=()=>{
+    for(const row of draft.preview){
+      const match=draft.rows.find(entry=>schoolKey(entry.category)===schoolKey(row.category));
+      if(match) match.weight=row.weight;
+      else draft.rows.push(row);
+    }
+    draft.preview=null;refreshSheet();
+  };
+  form.onsubmit=ev=>{
+    ev.preventDefault();
+    if(S.busy) return;
+    try{
+      requireSchoolOutline();
+      const entries=draft.rows.filter(row=>row.category.trim()||String(row.weight)!=="").map(row=>
+        ({category:schoolName(row.category,"大纲类别"),weight:schoolWeight(Number(row.weight))}));
+      validateSchoolOutline(entries);
+      const outline=schoolOutlineChanges(course,draft.baseline,entries,true);
+      void commitSchoolChanges({tasks:[],outline},{controls:[...form.querySelectorAll("input,textarea,button")],
+        errorField,message:"课程大纲已保存",onSaved:()=>{save(key,null);closeSheet();}});
+    }catch(error){schoolSaveError(error,errorField);}
+  };
+}
+
+const SCHOOL_DATE_ONLY=/^\d{4}-\d\d-\d\d$/;
+function schoolImportDate(value){
+  if(value==null) return null;
+  if(typeof value==="string"&&SCHOOL_DATE_ONLY.test(value)) value+="T23:59";
+  const match=typeof value==="string"&&/^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)(?::(\d\d)(?:\.\d{1,3})?)?(Z|[+-]\d\d:\d\d)?$/.exec(value);
+  if(!match) throw new Error("截止时间须使用 ISO 日期时间格式。");
+  const [,y,m,d,h,min,sec="00",zone]=match;
+  const calendar=new Date(`${y}-${m}-${d}T00:00:00Z`);
+  const parsed=new Date(value);
+  if(+y<1||!Number.isFinite(+calendar)||calendar.toISOString().slice(0,10)!==`${y}-${m}-${d}`||
+    +h>23||+min>59||+sec>59||!Number.isFinite(+parsed)||
+    (!zone&&(parsed.getHours()!==+h||parsed.getMinutes()!==+min))) throw new Error("截止时间无效或在夏令时跳过的时段。");
+  return parsed.toISOString();
+}
+function schoolImportList(value,label){
+  if(!Array.isArray(value)) throw new Error(label+"须为数组。");
+  return value;
+}
+function schoolImportObject(value,label){
+  if(!value||typeof value!=="object"||Array.isArray(value)) throw new Error(label+"须为对象。");
+  return value;
+}
+const schoolMatchKey=title=>schoolKey(schoolItemTitle({title})).replace(/[^\p{L}\p{N}]/gu,"");
+function schoolTitleDistance(left,right,limit){
+  if(Math.abs(left.length-right.length)>limit) return Infinity;
+  let row=Array.from({length:right.length+1},(_,i)=>i);
+  for(let i=1;i<=left.length;i++){
+    const next=[i];
+    for(let j=1;j<=right.length;j++) next[j]=Math.min(row[j]+1,next[j-1]+1,row[j-1]+(left[i-1]===right[j-1]?0:1));
+    if(Math.min(...next)>limit) return Infinity;
+    row=next;
+  }
+  return row[right.length];
+}
+function schoolMatchAssignment(title,due,candidates,dateOnly=false){
+  const key=schoolMatchKey(title);
+  const rank=candidates.flatMap(t=>{
+    const candidate=schoolMatchKey(t.title), shorter=Math.min(candidate.length,key.length);
+    if(!key||!candidate) return [];
+    if(candidate===key) return [{t,rank:0}];
+    const digits=value=>(value.match(/\d+/g)||[]).join(",");
+    if(shorter<4||digits(candidate)!==digits(key)) return [];
+    if(candidate.includes(key)||key.includes(candidate)) return [{t,rank:1}];
+    const limit=Math.min(2,Math.floor(shorter/5));
+    if(limit&&schoolTitleDistance(candidate,key,limit)<=limit) return [{t,rank:2}];
+    return [];
+  });
+  if(!rank.length) return null;
+  const best=Math.min(...rank.map(row=>row.rank));
+  const matches=rank.filter(row=>row.rank===best);
+  if(matches.length===1) return matches[0].t;
+  const sameDate=due&&matches.filter(({t})=>t.due_at&&(dateOnly?ymd(new Date(t.due_at))===ymd(new Date(due)):
+    Date.parse(t.due_at)===Date.parse(due)));
+  if(sameDate?.length===1) return sameDate[0].t;
+  throw new Error("有多份相似作业。请提供准确标题或对应的截止时间。");
+}
+function schoolImportAssignments(value){
+  const assignments=schoolImportList(value??[],"assignments");
+  const unique=new Map();
+  for(const row of assignments){
+    schoolImportObject(row,"作业");
+    const title=schoolName(row.title,"作业标题",300);
+    const key=JSON.stringify([schoolKey(title),row.due??null]);
+    const previous=unique.get(key);
+    if(!previous){
+      unique.set(key,{input:{...row},title,duplicates:0});
+      continue;
+    }
+    for(const field of ["category","weight","submitted","score","score_max"]){
+      const old=previous.input[field], incoming=row[field];
+      if(old!=null&&incoming!=null&&old!==incoming) throw new Error(title+" 有同名记录，"+field+" 值冲突。");
+      if(incoming!=null||(old==null&&Object.hasOwn(row,field))) previous.input[field]=incoming;
+    }
+    previous.duplicates++;
+  }
+  return [...unique.values()];
+}
+function schoolImportPlan(source){
+  requireSchoolOutline();
+  if(source.length>200000) throw new Error("JSON 太长，请按课程分批导入。");
+  let data;
+  try{data=JSON.parse(source);}catch(error){throw new Error("JSON 格式无效，请核对括号、逗号和引号。");}
+  const courses=schoolImportList(schoolImportObject(data,"JSON").courses,"courses");
+  const batch={tasks:[],outline:[]}, preview=[], courseKeys=new Set(), taskIds=new Set(), newKeys=new Set();
+  const all=schoolTasks(), submittedAt=new Date().toISOString();
+  let count=0;
+  for(const entry of courses){
+    schoolImportObject(entry,"课程");
+    const course=schoolCourseName(schoolName(entry.course,"课程")), courseKey=schoolKey(course);
+    if(courseKeys.has(courseKey)) throw new Error("JSON 包含重复课程 "+course+"。");
+    courseKeys.add(courseKey);
+    const outline=schoolOutline(course), merged=new Map(outline.map(row=>[schoolKey(row.category),{...row,weight:Number(row.weight)}]));
+    const importedOutline=schoolImportList(entry.outline??[],"outline").map(row=>{
+      if(++count>1000) throw new Error("单次最多预览 1000 项，请分批导入。");
+      schoolImportObject(row,"大纲行");
+      return {category:schoolName(row.category,"大纲类别"),weight:schoolWeight(row.weight)};
+    });
+    validateSchoolOutline(importedOutline);
+    for(const row of importedOutline) merged.set(schoolKey(row.category),row);
+    validateSchoolOutline([...merged.values()]);
+    const outlineChanges=schoolOutlineChanges(course,outline,importedOutline);
+    batch.outline.push(...outlineChanges);
+    for(const row of outlineChanges) preview.push({course,title:row.category,kind:"outline",before:row.before,after:row.after});
+    const candidates=all.filter(t=>schoolKey(schoolCourse(t))===courseKey);
+
+    for(const {input,title,duplicates} of schoolImportAssignments(entry.assignments)){
+      count+=1+duplicates;
+      if(count>1000) throw new Error("单次最多预览 1000 项，请分批导入。");
+      try{
+        const due=schoolImportDate(input.due), dateOnly=SCHOOL_DATE_ONLY.test(input.due);
+        const match=schoolMatchAssignment(title,due,candidates,dateOnly);
+        if(match&&taskIds.has(match.id)) throw new Error("多条导入记录匹配了同一份现有作业。");
+        const id=match?.id||crypto.randomUUID();
+        taskIds.add(id);
+        const fields=schoolFieldValues(match);
+        const after={...fields};
+        if(!match) after.school_course=course;
+        if(Object.hasOwn(input,"category")){
+          const category=input.category===null?null:schoolName(input.category,"评分类别");
+          after.grade_category=category?merged.get(schoolKey(category))?.category??category:null;
+        }
+        if(Object.hasOwn(input,"weight")) after.grade_weight=input.weight===null?null:schoolWeight(input.weight);
+        if(input.submitted!=null){
+          if(typeof input.submitted!=="boolean") throw new Error("submitted 须为 true、false 或 null。");
+          after.submitted_at=input.submitted?fields.submitted_at||submittedAt:null;
+        }
+        if(Object.hasOwn(input,"score")) Object.assign(after,schoolScore(input.score,input.score_max));
+        else if(Object.hasOwn(input,"score_max")) throw new Error("score_max 须与 score 一起提供。");
+        const patch=match?schoolTaskPatch(id,fields,after):{id,before:fields,after};
+        if(!match){
+          const identity=JSON.stringify([courseKey,schoolKey(title),due]);
+          if(newKeys.has(identity)) throw new Error("JSON 包含重复作业。");
+          newKeys.add(identity);
+          patch.create={title,due_at:due,key:identity};
+        }
+        if(patch) batch.tasks.push(patch);
+        preview.push({course,title,matched:match?.title,kind:match?patch?"update":"same":"create",
+          due:match?.due_at??(match?null:due),inputDue:due,dateOnly,duplicates,before:match?fields:null,after});
+      }catch(error){throw new Error(course+" · "+title+" — "+error.message);}
+    }
+  }
+  return {batch,preview};
+}
+function schoolPreviewGrade(state){
+  return state.score==null?"未出分":`${state.score} / ${state.score_max}`;
+}
+function schoolImportPreview(row){
+  if(row.kind==="outline") return `<li><strong>${esc(row.course)} · ${esc(row.title)}</strong><div class="sub">
+    大纲 ${row.before==null?"新增":schoolPercent(row.before)+" →"} ${schoolPercent(row.after)}</div></li>`;
+  const previous=row.before, next=row.after;
+  const details=[];
+  const submitLabel=value=>value?"已交":"没交";
+  const weightLabel=value=>value==null?"未设":schoolPercent(value);
+  const categoryLabel=value=>value||"未分类";
+  const detail=(field,label,format)=>{
+    if(!previous) details.push(label+format(next[field]));
+    else if(!schoolSame(previous[field],next[field])) details.push(label+format(previous[field])+" → "+format(next[field]));
+  };
+  detail("submitted_at","",submitLabel);
+  if(!previous) details.push(schoolPreviewGrade(next));
+  else if(!schoolSame(previous.score,next.score)||!schoolSame(previous.score_max,next.score_max)){
+    details.push(schoolPreviewGrade(previous)+" → "+schoolPreviewGrade(next));
+  }
+  detail("grade_category","类别 ",categoryLabel);
+  detail("grade_weight","单独占比 ",weightLabel);
+  if(row.duplicates) details.push("合并 "+(row.duplicates+1)+" 条同名记录");
+  if(row.due) details.push("截止 "+schoolDueLabel({due_at:row.due},Date.now()));
+  if(row.dateOnly&&!row.matched) details.push("原数据仅有日期，按当天 23:59");
+  if(row.matched&&row.inputDue&&Date.parse(row.inputDue)!==Date.parse(row.due)) details.push("保留现有截止时间");
+  return `<li><strong>${esc(row.course)} · ${esc(row.title)}</strong><div class="sub">
+    ${row.kind==="create"?"新建":row.kind==="same"?"无需更新":"更新"}${row.matched?" · 匹配 "+esc(row.matched):""}${details.length?" · "+esc(details.join(" · ")):""}</div></li>`;
+}
+function schoolImportSheet(){
+  const key=userKey("schoolImport"), draft=load(key,{text:"",plan:null});
+  const plan=draft.plan, writes=plan?plan.batch.tasks.length+plan.batch.outline.length:0;
+  openSheet(`<h2>导入 Blackboard 作业 JSON</h2>
+    <form class="stack" id="school-import-form">
+      <label><span class="fl">粘贴作业、分数和大纲 JSON</span>
+      <textarea class="f" id="school-import-text" maxlength="200000" rows="6">${esc(draft.text)}</textarea></label>
+      <button class="btn" id="school-import-preview" type="button">预览变更</button>
+      <div id="school-import-results" ${plan?"":"hidden"}>${plan?`<p class="sub">将保存 ${writes} 项变更。请核对课程、作业匹配和分数。</p>
+      ${plan.preview.length?`<ul class="steps">${plan.preview.map(schoolImportPreview).join("")}</ul>`:'<p class="empty">这段 JSON 没有可导入的课程大纲或作业。</p>'}`:""}</div>
+      <p class="err" id="school-import-error" role="alert"></p>
+      <div class="grid2"><button type="button" class="btn" data-act="close-sheet">关闭</button>
+      <button type="submit" class="btn primary" ${writes&&!S.outlineError?"":"disabled"}>确认导入</button></div>
+    </form>`,{type:"school-import"});
+  const form=$("#school-import-form"), errorField=$("#school-import-error"), field=$("#school-import-text");
+  field.oninput=()=>{
+    draft.text=field.value;draft.plan=null;save(key,draft);
+    $("#school-import-results").hidden=true;
+    form.querySelector('[type="submit"]').disabled=true;
+    errorField.textContent="";
+  };
+  $("#school-import-preview").onclick=()=>{
+    try{
+      draft.text=field.value;
+      draft.plan=schoolImportPlan(draft.text);save(key,draft);schoolImportSheet();
+    }catch(error){schoolSaveError(error,errorField);}
+  };
+  form.onsubmit=ev=>{
+    ev.preventDefault();
+    if(!draft.plan||S.busy||S.outlineError||draft.text!==field.value) return;
+    void commitSchoolChanges(draft.plan.batch,{controls:[...form.querySelectorAll("textarea,button")],
+      errorField,message:"作业与课程大纲已导入",onSaved:()=>{save(key,null);closeSheet();}});
+  };
+}
+function schoolAction(action,el){
+  const value=el.dataset.v;
+  if(action==="school-import") return schoolImportSheet();
+  if(action==="school-edit") return schoolEdit(schoolTasks().find(t=>t.id===el.dataset.id));
+  if(action==="school-outline") return schoolOutlineSheet(value);
+  if(action==="school-undo") return schoolUndo();
+  if(action==="school-retry") return retrySchoolOutlines(el);
+  if(action==="school-overdue"){
+    save(userKey("schoolFilter"),{...schoolFilter(),state:"late",q:"",course:""});
+    return changeView("school");
+  }
+  const filter=schoolFilter();
+  if(action==="school-hide"){
+    filter.hideSubmitted=!filter.hideSubmitted;
+    if(filter.hideSubmitted&&filter.state==="submitted") filter.state="all";
+  }else if(action==="school-filter"){
+    filter.state=value;
+    if(value==="submitted") filter.hideSubmitted=false;
+  }else return;
+  save(userKey("schoolFilter"),filter);render();
+}
+async function retrySchoolOutlines(button){
+  if(!beginWrite()) return;
+  const user=S.user;
+  button.disabled=true;
+  try{
+    const outlines=await readSchoolOutlines();
+    if(S.user!==user) return;
+    Object.assign(S,{outlines,outlineError:false});
+    render();
+  }catch(error){
+    if(S.user===user) toast("课程大纲仍未读到，请稍后再试。");
+  }finally{button.disabled=false;S.busy=false;}
+}
+function updateSchoolForecast(field){
+  const course=field.getAttribute("data-school-forecast");
+  save(schoolForecastKey(course),field.value);
+  const markup=field.closest("label").querySelector("[data-school-final]");
+  if(field.value===""||Number(field.value)<0||Number(field.value)>100){markup.textContent="输入 0–100";return;}
+  const estimate=schoolEstimate(schoolTasks().filter(t=>schoolKey(schoolCourse(t))===schoolKey(course)),
+    schoolOutline(course),Number(field.value));
+  markup.textContent=schoolPercent(estimate.final);
 }
 
 /* ---------- sheets ---------- */
@@ -2033,6 +2758,8 @@ document.addEventListener("click",async ev=>{
   if(a==="today-more"){const key=userKey("showToday");save(key,!load(key,false));return render();}
   if(a==="filter-expired"){S.all.hideExpired=!S.all.hideExpired;save("allFilter",S.all);return render();}
   if(a==="next"){ setPick(S.pick+1); render(true); $(".hero-next")?.focus({preventScroll:true}); return; }
+  if(a==="school") return changeView("school");
+  if(a.startsWith("school-")) return schoolAction(a,el);
   if(a.startsWith("inbox-")) return inboxAction(a,el.dataset.v);
   if(a.startsWith("wish-")) return wishAction(a,el.dataset.v);
   if(a.startsWith("routine-")) return routineAction(a,el.dataset.v);
@@ -2132,9 +2859,17 @@ document.addEventListener("input",ev=>{
   if(ev.target.id==="routineq") return updateSearch(ev.target,"routineFilter",{state:"all",sort:"priority"});
   if(ev.target.id==="projectq") return updateSearch(ev.target,projectFilterName(load(userKey("projectId"),null)),PROJECT_FILTER);
   if(ev.target.id==="inboxq") return updateSearch(ev.target,"inboxFilter",{area:"",oldest:true});
+  if(ev.target.id==="schoolq") return updateSearch(ev.target,"schoolFilter",SCHOOL_FILTER);
+  if(ev.target.getAttribute("data-school-forecast")!==null) return updateSchoolForecast(ev.target);
   if(ev.target.id==="allq"){ S.all.q=ev.target.value; save("allFilter",S.all); const pos=ev.target.selectionStart; render(); const n=$("#allq"); n.focus(); n.setSelectionRange(pos,pos); }
 });
 document.addEventListener("change",ev=>{
+  const field=ev.target;
+  if(field.getAttribute("data-school-submit")!==null) return toggleSchoolSubmission(field);
+  if(field.id==="school-course-filter"||field.id==="school-sort"){
+    save(userKey("schoolFilter"),{...schoolFilter(),[field.id==="school-sort"?"sort":"course"]:field.value});
+    return render();
+  }
   if(ev.target.id==="recommendation-place"){save(userKey("recommendationPlace"),ev.target.value);setPick(0);render();}
 });
 document.addEventListener("keydown",e=>{
@@ -2184,6 +2919,9 @@ async function boot(){
     if(rule||!panel.id) ruleSheet(rule);
   }
   if(panel?.type==="planner"&&!S.session) plannerSheet(false,panel.scope);
+  if(panel?.type==="school-edit"&&!S.session) schoolEdit(schoolTasks().find(t=>t.id===panel.id));
+  if(panel?.type==="school-outline"&&!S.session) schoolOutlineSheet(panel.id);
+  if(panel?.type==="school-import"&&!S.session) schoolImportSheet();
   if(panel?.type==="event"&&!S.session) eventSheet(panel.event||null);
   if(panel?.type==="routine"&&!S.session){
     const t=panel.id?S.tasks.find(t=>t.id===panel.id):null;
@@ -2202,7 +2940,7 @@ sb.auth.onAuthStateChange((_e,session)=>{
   closeInterlude();
   if(!$("#sheet").hidden) closeSheet();
   const toastBox=$("#toast"); toastBox.hidden=true; toastBox.innerHTML=""; clearTimeout(tt);
-  Object.assign(S,{user:u,loaded:false,loadError:false,tasks:[],acts:[],rules:[],rulesError:false,session:null,settings:null,rec:{},projectTime:null,activityLikes:null,progress:null,openingChecked:false,pick:0});
+  Object.assign(S,{user:u,loaded:false,loadError:false,tasks:[],acts:[],rules:[],rulesError:false,outlines:[],outlineError:false,session:null,settings:null,rec:{},projectTime:null,activityLikes:null,progress:null,openingChecked:false,pick:0});
   if(u){ S.pick=load(userKey("pick"),0); S.view=load(userKey("view"),"home"); S.cal.day=load(userKey("calendarDay"),null); }
   if(u) setTimeout(boot,0); else render();
 });
