@@ -7,23 +7,28 @@
 <meta name="apple-mobile-web-app-title" content="Life OS">
 <title>Life OS</title>
 <style>
-/* One screen, one decision. Neutral surfaces; color only for category dots and warnings. */
+/* One screen, one decision. */
 :root{
-  --bg:#F5F5F2; --card:#FFFFFF; --soft:#EEEDE8; --ink:#1F1F1C; --sub:#6B6A64; --faint:#9C9B94; --line:#E2E1DB;
-  --primary:#1F1F1C; --on-primary:#FFFFFF; --warn-bg:#FAEEDA; --warn:#854F0B; --bad:#A32D2D; --ok:#3B6D11;
-  --r:14px; --font:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  --bg:#f7efe5;--card:#fffaf2;--soft:#f0e5d8;--ink:#322a36;--sub:#645664;--faint:#706272;--line:#dccabb;
+  --primary:#51394a;--on-primary:#fff8ec;--warn-bg:#FAEEDA;--warn:#854F0B;--bad:#A32D2D;--ok:#3B6D11;
+  --gold:#a07240;--plum:#503348;--cream:#fff6e9;--paper-shadow:0 14px 34px #4a2e3720;
+  --font:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  --serif:ui-serif,"Songti SC","STSong",Georgia,serif;
   color-scheme:light;
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#141413; --card:#1E1E1C; --soft:#2A2A27; --ink:#EDECE6; --sub:#A3A29B; --faint:#77766F; --line:#33332F;
-  --primary:#EDECE6; --on-primary:#141413; --warn-bg:#3A2A12; --warn:#F0B55A; --bad:#F09595; --ok:#97C459; color-scheme:dark}}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#221f37;--card:#302a44;--soft:#3b334d;--ink:#f9efe9;--sub:#d3c1d0;--faint:#c5b3c9;--line:#594b65;
+  --primary:#f3d9e2;--on-primary:#34243b;--warn-bg:#3A2A12;--warn:#F0B55A;--bad:#F09595;--ok:#97C459;
+  --gold:#e2b582;--plum:#f2d9e4;--cream:#352840;--paper-shadow:0 14px 34px #130e2750;
+  color-scheme:dark;
+}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
 button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid #378ADD;outline-offset:2px}
-.wrap{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;gap:16px;
+.wrap{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;gap:12px;position:relative;
   padding:calc(14px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-left)) calc(16px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-right))}
 .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .date{font-size:17px;font-weight:600}
@@ -100,21 +105,137 @@ progress{display:block;width:100%;accent-color:#378ADD;margin-top:5px}
 .week-item{padding:4px 0;font-size:14px}
 .week-item small{display:block}
 .week-plan{gap:4px}
-.home-top{flex-wrap:wrap}
 .home-actions{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px}
-.desktop-grid{display:grid;grid-template-columns:minmax(300px,0.85fr) minmax(0,1.15fr);gap:28px;width:100%;align-items:start}
+.desktop-grid{display:grid;grid-template-columns:minmax(300px,0.85fr) minmax(0,1.15fr);gap:clamp(24px,4vw,60px);width:100%;align-items:start}
 .is-desktop{max-width:1480px;padding-inline:clamp(20px,3vw,48px)}
-.desktop-home,.desktop-right{min-width:0}
-.desktop-right{border-left:1px solid var(--line);padding-left:28px}
+.desktop-home,.desktop-right{min-width:0;position:relative}
 .desktop-right[data-view="all"] > .top > [data-act="home"]{visibility:hidden}
 .desktop-right .week-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.paper-grain{position:fixed;inset:0;width:100%;height:100%;opacity:.055;pointer-events:none;z-index:35}
+.home-top{flex-wrap:nowrap;align-items:flex-start;gap:4px 10px}
+.home-top .date{font-family:var(--serif);font-size:22px;font-weight:800}
+.home-date{display:grid;gap:2px}
+.home-date .sub{font-size:12px}
+.home-actions .iconbtn{border-bottom:1px solid var(--line);border-radius:0;padding-inline:6px}
+.page-whisper{position:relative;margin:0;padding:6px 40px 7px 10px;border-left:2px solid var(--gold);color:var(--sub);
+  font:600 15px/1.5 var(--serif);letter-spacing:.04em;min-height:34px}
+.whisper-mark{position:absolute;inset:0 1px auto auto;width:30px;height:30px;color:var(--gold);opacity:.6;pointer-events:none}
+[data-note-page="cal"] .whisper-mark,[data-note-page="rules"] .whisper-mark{right:12%;transform:rotate(-12deg)}
+[data-note-page="all"] .whisper-mark,[data-note-page="wishes"] .whisper-mark{right:5%;transform:rotate(14deg)}
+[data-note-page="projects"] .whisper-mark,[data-note-page="routines"] .whisper-mark{right:20%;transform:rotate(-8deg)}
+[data-note-page="cal"],[data-note-page="rules"],[data-note-page="all"],[data-note-page="wishes"],
+[data-note-page="projects"],[data-note-page="routines"]{padding-right:calc(20% + 32px)}
+[data-note-page="inbox"] .whisper-mark{right:3%;top:5px}
+[data-note-page="activities"] .whisper-mark{right:7%;top:-2px}
+[data-note-page="timer"] .whisper-mark{right:2%;top:-2px}
+.focus-hero,.timer-paper{
+  --wash-a:#f8e1c3;--wash-b:#e7cee5;--wash-c:#facfc1;--wash-ink:#37283b;--wash-mark:#895175;
+  color:var(--wash-ink);background:linear-gradient(133deg,var(--wash-a),var(--wash-b) 65%,var(--wash-c));
+  position:relative;isolation:isolate;overflow:hidden;border:1px solid #7b52643d;box-shadow:var(--paper-shadow)
+}
+[data-paper="0"]{--wash-a:#e0eef6;--wash-b:#c3d9ef;--wash-c:#e8ddf6;--wash-mark:#3b6894}
+[data-paper="1"]{--wash-a:#edf2d5;--wash-b:#c6e2d0;--wash-c:#cfe9e4;--wash-mark:#396e58}
+[data-paper="2"]{--wash-a:#f9edcb;--wash-b:#f2d7a8;--wash-c:#f7dac8;--wash-mark:#8d5d29}
+[data-paper="3"]{--wash-a:#fae9d8;--wash-b:#efcbba;--wash-c:#f5d5d4;--wash-mark:#974c3a}
+[data-paper="4"]{--wash-a:#f1e9f8;--wash-b:#dbcef2;--wash-c:#f4d6e6;--wash-mark:#785093}
+[data-paper="5"]{--wash-a:#fae9ed;--wash-b:#eecada;--wash-c:#f5d9c6;--wash-mark:#964c6b}
+[data-paper="6"]{--wash-a:#f1eadb;--wash-b:#d9dfd7;--wash-c:#e4dceb;--wash-mark:#646d68}
+@media(prefers-color-scheme:dark){
+  .focus-hero,.timer-paper{--wash-a:#3b2c43;--wash-b:#4b345b;--wash-c:#5c3c50;--wash-ink:#fff3f3;--wash-mark:#f4c6e2}
+  [data-paper="0"]{--wash-a:#26354e;--wash-b:#354870;--wash-c:#43365a;--wash-mark:#beddf7}
+  [data-paper="1"]{--wash-a:#263c3d;--wash-b:#325347;--wash-c:#364656;--wash-mark:#bae9cd}
+  [data-paper="2"]{--wash-a:#453536;--wash-b:#5b4533;--wash-c:#4d3b58;--wash-mark:#f7d8a6}
+  [data-paper="3"]{--wash-a:#4b323d;--wash-b:#623e43;--wash-c:#554057;--wash-mark:#ffd1ba}
+  [data-paper="4"]{--wash-a:#3a3057;--wash-b:#4e3b66;--wash-c:#533f60;--wash-mark:#e4cefa}
+  [data-paper="5"]{--wash-a:#44314e;--wash-b:#663b56;--wash-c:#56384a;--wash-mark:#f8cce0}
+  [data-paper="6"]{--wash-a:#353444;--wash-b:#464852;--wash-c:#494056;--wash-mark:#deddd5}
+}
+.focus-hero::before,.timer-paper::before{content:"";position:absolute;inset:-10%;z-index:-2;pointer-events:none;
+  background:radial-gradient(ellipse at 30% 65%,var(--wash-c),transparent 60%);opacity:.64;animation:paper-light 24s ease-in-out infinite alternate}
+@keyframes paper-light{from{transform:translate(-7%,-8%)}to{transform:translate(12%,5%)}}
+.paper-mark{position:absolute;z-index:-1;pointer-events:none;right:-10%;bottom:-21%;width:min(91%,420px);height:auto;opacity:.25;color:var(--wash-mark)}
+.timer-paper .paper-mark{width:min(94%,560px);right:-16%;bottom:-28%}
+.focus-hero{border-radius:28px;min-height:clamp(350px,57svh,510px);padding:clamp(18px,4.4vw,32px);gap:12px}
+.hero-label{font-size:12px;font-weight:700;letter-spacing:.1em;align-self:flex-start;padding:4px 10px;border:1px solid currentColor;border-radius:99px}
+.focus-hero .hero-title{align-self:flex-start;color:inherit;font:800 clamp(28px,5vw,34px)/1.23 var(--serif);
+  text-align:left;padding:0;border:0;background:none;max-width:100%;margin:0}
+.focus-hero .hero-copy{display:grid;gap:6px}
+.hero-copy p{margin:0;overflow-wrap:anywhere}
+.hero-copy .title{line-height:1.23}
+.hero-reason{font-size:14px;font-weight:650}
+.hero-resume{font-size:13px}
+.hero-actions{margin-top:auto;display:grid;justify-items:center;gap:6px;padding-top:8px}
+.hero-start{display:grid;align-content:center;justify-items:center;gap:2px;width:98px;height:98px;padding:5px;border-radius:50%;
+  border:1px solid var(--cream);background:var(--plum);color:var(--cream);box-shadow:0 0 0 5px #ffffff39,0 8px 18px #33213738}
+.hero-start strong{font-size:19px;font-weight:750}
+.hero-start small{font-size:12px}
+.hero-next{border:0;background:none;color:inherit;padding:8px 12px;font-size:13px;text-underline-offset:4px;text-decoration:underline}
+.hero-swapped{animation:card-slide .32s ease-out both}
+@keyframes card-slide{from{transform:translateX(14px);opacity:.25}to{transform:translateX(0);opacity:1}}
+.hero-empty{justify-content:center}
+.hero-empty .paper-mark{opacity:.18}
+.capture{box-shadow:0 3px 9px #442e3510}
+.capture:focus-within{outline:2px solid #378ADD;outline-offset:2px}
+.today-progress{display:flex;flex-wrap:wrap;gap:4px 13px;margin:0;padding:5px 0 5px 2px;color:var(--sub);font-size:13px}
+.today-progress b{color:var(--ink);font-weight:750}
+.recommend-controls{display:grid;gap:8px;padding:12px;border:1px dashed var(--line);border-radius:14px}
+.page-edge{position:absolute;right:3%;bottom:6px;width:48px;height:48px;opacity:.21;color:var(--gold);pointer-events:none}
+.page-edge svg{display:block;width:100%;height:100%}
+[data-edge="cal"],[data-edge="rules"]{right:17%;transform:rotate(-12deg)}
+[data-edge="home"],[data-edge="projects"]{right:8%;transform:rotate(12deg)}
+.blk:not(.soft){color:var(--ink);background:var(--card);background:color-mix(in srgb,var(--card) 76%,var(--block-color));box-shadow:inset 3px 0 var(--block-color)}
+.desktop-right{padding:16px clamp(16px,2.5vw,28px);background:var(--card);border:1px solid var(--line);
+  border-radius:22px;box-shadow:0 4px 18px #46334212}
+@media(min-width:1024px){
+  .is-desktop{padding-top:clamp(24px,4vh,46px)}
+  .focus-hero{min-height:clamp(405px,57svh,510px)}
+}
+.timer-paper{flex:1;display:flex;flex-direction:column;gap:13px;padding:clamp(18px,4vw,34px);border-radius:28px}
+.timer-paper .steps{overflow-wrap:anywhere}
+.timer-paper .title{font:800 clamp(25px,5vw,34px)/1.3 var(--serif)}
+.timer-paper :is(.label,.sub,.faint,.page-whisper){color:inherit}
+.timer-paper .chip{color:inherit;border-color:currentColor;min-width:64px}
+.timer-paper .ring{width:min(100%,clamp(200px,36vh,294px));height:auto;aspect-ratio:1;margin:14px auto}
+.timer-paper .clock{font-size:clamp(45px,12vw,64px);font-weight:750;line-height:1.1;letter-spacing:-.04em}
+.timer-paper .ring-track{opacity:.25}
+.timer-paper .ring-fill{transition:stroke-dashoffset .35s linear}
+.timer-paper .btn.primary{margin-top:auto;background:var(--plum);color:var(--cream)}
+@media(min-width:700px){.wrap:has(.timer-paper){max-width:760px;padding-block:32px}}
+.interlude{position:fixed;inset:0;z-index:40;display:grid;place-items:center;overflow:auto;
+  padding:18px;background:#271e3ba8;overscroll-behavior:contain}
+.interlude[data-mode="opening"]{background:linear-gradient(144deg,#fbecd3,#eacadd 62%,#dacff1)}
+.interlude-card{position:relative;isolation:isolate;display:grid;justify-items:center;align-content:center;gap:12px;border-radius:28px;
+  width:min(100%,465px);min-height:min(350px,75dvh);padding:28px 20px;overflow:hidden;text-align:center;background:var(--card);
+  color:var(--ink);box-shadow:var(--paper-shadow);border:1px solid var(--line)}
+[data-mode="opening"] .interlude-card{background:none;border-color:transparent;box-shadow:none;color:#422d44}
+.interlude-card h2{margin:0;font:800 clamp(25px,5vw,35px)/1.35 var(--serif);overflow-wrap:anywhere}
+.interlude-mark{width:48px;height:48px;color:var(--gold)}
+[data-mode="opening"] .interlude-mark{color:#88557a}
+.interlude-card p{margin:0;color:var(--sub)}
+.interlude-card .toast-stats{min-height:1.5em}
+.interlude-card .btn{width:auto;min-width:100px}
+[data-mode="opening"] .interlude-card .btn{background:transparent;color:inherit;border-color:#78516c}
+.interlude canvas{position:fixed;inset:0;pointer-events:none}
+.setting-switch{display:flex;align-items:center;gap:10px;font-size:15px;padding:8px 0}
+.setting-switch input{width:20px;height:20px;margin:0;accent-color:var(--primary)}
+@media(prefers-color-scheme:dark){
+  .interlude[data-mode="opening"]{background:linear-gradient(144deg,#26233f,#4c3458 70%,#583b54)}
+  [data-mode="opening"] .interlude-card,[data-mode="opening"] .interlude-mark{color:#f6dfe9}
+  [data-mode="opening"] .interlude-card .btn{border-color:#c99ab9}
+}
+@media(prefers-reduced-motion:reduce){
+  .focus-hero::before,.timer-paper::before,.hero-swapped{animation:none}
+  .timer-paper .ring-fill{transition:none}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
+<svg class="paper-grain" aria-hidden="true" focusable="false"><filter id="paper-texture"><feTurbulence type="fractalNoise" baseFrequency=".79" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#paper-texture)"/></svg>
 <div class="wrap" id="app"><p class="empty">正在打开…</p></div>
 <div class="sheet" id="sheet" hidden><div class="bg" data-act="close-sheet"></div><div class="card" id="sheet-card" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" hidden></div>
+<div class="interlude" id="interlude" role="dialog" aria-modal="true" aria-labelledby="interlude-title" hidden></div>
 <script>
 (function(){
 "use strict";
@@ -170,6 +291,212 @@ function dueText(t){
   if(ymd(d)===today()) return d.getHours()>=17?"今晚截止":"今天截止";
   if(ymd(d)===addDays(today(),1)) return "明天截止";
   const days=Math.ceil(h/24); return days<=7?days+" 天后截止":(d.getMonth()+1)+"月"+d.getDate()+"日截止";
+}
+
+/* ---------- paper and short notes ---------- */
+const NOTES={
+  opening:["今天也有空白页","给今天留一扇窗","先放好手边的一件事","今天可以从这里翻开","桌上有一块地方留给你","把这一页放平","从熟悉的地方接上","让今天有个舒服的开头","早上好，先坐一会儿","今天也可以慢一点","先看看桌上的第一件事","把肩膀放下来","新的一页留给此刻","先在这里停一秒","现在，翻到今天"],
+  start:["只看眼前这一小段","先找到要用的那一页","打开文件就算起步","先做手边这一笔","从上次停下的地方接起","把第一步放近一点","先写一个能改的开头","先给这件事几分钟","准备好了就动第一下","先做最清楚的那一步","照自己的速度来","先把材料摊在眼前","只管这一轮","先读一遍再落笔","这段时间留给手上的事"],
+  done:["这一笔可以收好了","刚才的时间有了着落","给自己留口气","写完这页，歇一会儿","这一小段走完了","现在可以松松肩","这一件做到了","把进度留在这里","桌上又空出一小块","把走过的一步记下来","这一轮好好收尾了","今天多留下一件做完的事","合上这一页也很好","这几分钟值得记下来","做好的这一件就在这里"],
+  tired:["累了就选轻一点的","先喝口水也好","今天可以少拿一点","暂时坐一坐","找一件不用费力的小事","让眼睛离开屏幕一会儿","把步子放小一点","留些力气给晚一点的自己","给手和肩膀一点休息","短一点的安排也可以","先把手里的东西放下","可以把空白留着","休息也可以排进今天","选最顺手的那一件","先找个舒服的位置"],
+  streak:["这些天都留了些时间","熟悉的节奏又回来了","一页一页，已经写了几页","今天也接上了","你又来到同一张桌前","这些分钟慢慢攒起来了","几天的脚印还在这里","今天接住了昨天的一点","每次回到这里都有记录","这些小步走在一起了","日子一格一格填起来","又留了一段自己的时间","前几页翻开还有痕迹","这几天都留下一笔","这段节奏可以慢慢走"],
+  night:["把没做完的留个路标","晚上可以把步子放轻","给明天留一句就好","这页可以先折个角","夜深了，先收好桌面","困了就把灯调暗一点","把下一步写在手边","手边这段可以慢慢收住","明天会从这里接着翻","现在可以安静一点","一件一件放回原位","留一点安静给今晚","收好这一小段","今晚先留一行字","把今天的页角压平"]
+};
+const MARKS=[
+  '<path d="M15 58l14-6 7-20 6 20 19 6-19 7-6 18-7-19zM65 21l8-3 3-10 4 10 10 3-10 4-4 11-3-11zM80 71l5-2 3-8 3 8 8 2-8 3-3 8-3-8z"/>',
+  '<path d="M12 89Q51 69 82 16m-48 62Q13 64 19 40q22 5 25 28m3-6q26 2 42-22-22-6-35 10m2-6Q44 25 52 11q17 8 13 22m2 2Q91 30 94 8q-17 3-24 19"/>',
+  '<path d="M12 70q11-27 26-8t27-4 25-5M9 83q15-21 27-7t27-2 29-7M41 39c-7-9-1-22 9-22s17 14 7 22-18 0-15-8"/>',
+  '<path d="M18 80Q34 71 47 51T78 21M39 62q-23 3-26-17 16-7 31 9m10-12q-12-25 7-34 10 13 0 29m3-3q30 2 26 19-16 9-34-9m-8 10q23 11 14 27-18 3-20-20"/>',
+  '<path d="M45 14c0 11 8 21 22 22-14 3-22 9-22 24-2-13-7-21-22-24 15-2 20-9 22-22zm29 39c1 10 7 15 18 17-11 2-16 6-18 17-2-11-8-15-18-17 11-2 17-8 18-17zM11 70l12 10m1-13-9 16"/>',
+  '<path d="M47 88Q52 62 50 44m0 0C20 59 15 25 39 31c-14-24 21-29 20-7 28-12 32 22 9 18-1 22-25 19-18 2zm0 24q24-15 36-11-9 17-37 17m0 8Q33 69 20 75q5 12 26 12"/>',
+  '<path d="M13 73q20-46 47-40t23 29Q77 86 50 79T30 55q7-15 25-7t7 18q-10 3-15-8m36-37 6 6m1-9-7 10M17 32l-5 9"/>'
+];
+const paperIndex=area=>{const i=AREAS.findIndex(([name])=>name===area);return i<0?6:i;};
+function mark(index,css){
+  return `<svg class="${css}" viewBox="0 0 100 100" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${MARKS[index]}</svg>`;
+}
+function dailyNote(group,offset=0){
+  const [y,m,d]=today().split("-").map(Number), day=Date.UTC(y,m-1,d)/864e5;
+  return NOTES[group][(day+offset)%NOTES[group].length];
+}
+const PAGE_NOTES={
+  home:["opening",0,0],all:["start",1,1],cal:["opening",2,2],inbox:["start",3,4],
+  projects:["streak",4,3],routines:["streak",5,1],wishes:["tired",6,5],rules:["opening",7,6],
+  activities:["tired",8,3],timer:["start",9,4],settings:["opening",10,2]
+};
+function pageEdge(view){
+  return `<div data-edge="${view}" class="page-edge">${mark((PAGE_NOTES[view][2]+3)%MARKS.length,"")}</div>`;
+}
+function pageNoteText(view){
+  const [group,offset]=PAGE_NOTES[view];
+  if(new Date().getHours()>=23) return dailyNote("night",offset);
+  if(view==="home"&&S.energy==="low") return dailyNote("tired",offset);
+  if(group==="streak"){
+    const {streak,focusedToday}=progressValues();
+    return dailyNote(streak>=2&&focusedToday?"streak":"start",offset);
+  }
+  return dailyNote(group,offset);
+}
+function pageNote(view){
+  return `<p class="page-whisper" data-note-page="${view}"><span>${pageNoteText(view)}</span>${mark(PAGE_NOTES[view][2],"whisper-mark")}</p>`;
+}
+
+/* ---------- opening, countdown and completion ---------- */
+const reduceMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)");
+let interludeTimer, interludeDone, previousFocus, confettiFrame;
+function closeInterlude(){
+  const overlay=$("#interlude");
+  if(overlay.hidden) return;
+  clearTimeout(interludeTimer);
+  if(confettiFrame!=null) window.cancelAnimationFrame?.(confettiFrame);
+  confettiFrame=null; overlay.hidden=true; overlay.innerHTML="";
+  for(const id of ["app","sheet","toast"]) $("#"+id).toggleAttribute("inert",false);
+  const target=previousFocus?.isConnected&&previousFocus!==document.body?previousFocus:
+    $("#sheet").hidden?$("#capin")||$("#app [data-act]"):$("#sheet-card button");
+  target?.focus({preventScroll:true});
+  previousFocus=null;
+  const done=interludeDone; interludeDone=null; done?.();
+}
+function openInterlude(mode,group,actions,timeout,done){
+  closeInterlude();
+  const overlay=$("#interlude");
+  overlay.dataset.mode=mode;
+  overlay.innerHTML=`<div class="interlude-card">${mark(mode==="completion"?4:0,"interlude-mark")}
+    <h2 id="interlude-title">${dailyNote(group)}</h2>${actions}</div>`;
+  previousFocus=document.activeElement;
+  for(const id of ["app","sheet","toast"]) $("#"+id).toggleAttribute("inert",true);
+  overlay.hidden=false; (overlay.querySelector("button")||overlay).focus();
+  interludeDone=done;
+  if(timeout) interludeTimer=setTimeout(closeInterlude,timeout);
+}
+function maybeOpening(){
+  if(S.openingChecked||document.visibilityState!=="visible") return;
+  S.openingChecked=true;
+  const key=userKey("lastOpening"), last=load(key,null);
+  if(!load(userKey("openingEnabled"),true)||
+    (last!==null&&Date.now()>=last&&Date.now()-last<30*60000)) return;
+  save(key,Date.now());
+  openInterlude("opening",new Date().getHours()>=23?"night":"opening",
+    '<button type="button" class="btn">跳过</button>',1000);
+}
+function beforeStart(){
+  return new Promise(resolve=>{
+    openInterlude("countdown","start",'<p id="start-count" aria-hidden="true">3</p>',1500,resolve);
+    if(!reduceMotion?.matches){
+      const start=performance.now(), count=$("#start-count");
+      const frame=()=>{ if(!count.isConnected||reduceMotion?.matches) return;
+        count.textContent=String(Math.max(1,3-Math.floor((performance.now()-start)/500)));
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    }else $("#start-count").textContent="即将开始";
+  });
+}
+function celebrate(followup=false,onClose){
+  openInterlude("completion","done",`<p class="toast-stats" id="completion-stats" aria-live="polite"></p>
+    ${followup?'<p>后续已排到明天</p>':""}<button type="button" class="btn primary">继续</button>`,null,onClose);
+  paintProgress();
+  if(!reduceMotion?.matches) confetti();
+}
+function confetti(){
+  const overlay=$("#interlude"), canvas=document.createElement("canvas");
+  canvas.setAttribute("aria-hidden","true");
+  const ctx=canvas.getContext?.("2d");
+  if(!ctx) return;
+  const w=overlay.clientWidth,h=overlay.clientHeight,ratio=Math.min(devicePixelRatio||1,2);
+  canvas.width=w*ratio;canvas.height=h*ratio;canvas.style.width=w+"px";canvas.style.height=h+"px";
+  overlay.append(canvas);ctx.scale(ratio,ratio);
+  const colors=["#ce7a78","#dbad62","#8ebda3","#a88ac4","#7a9cc7"];
+  const pieces=Array.from({length:60},(_,i)=>({
+    x:(Math.random()-.5)*Math.min(w,620)*1.45,y:-(.65+Math.random())*h*.52,
+    spin:(Math.random()-.5)*14,size:4+Math.random()*5,color:colors[i%colors.length]
+  }));
+  const start=performance.now();
+  const frame=now=>{
+    const t=(now-start)/1000;ctx.clearRect(0,0,w,h);
+    if(t>=1||reduceMotion?.matches||!canvas.isConnected){if(canvas.isConnected) canvas.remove();confettiFrame=null;return;}
+    ctx.globalAlpha=Math.min(1,(1-t)*4);
+    for(const p of pieces){
+      ctx.save();ctx.translate(w/2+p.x*t,h*.57+p.y*t+h*.86*t*t);ctx.rotate(p.spin*t);
+      ctx.fillStyle=p.color;ctx.fillRect(0,0,p.size,p.size*.58);ctx.restore();
+    }
+    confettiFrame=requestAnimationFrame(frame);
+  };
+  confettiFrame=requestAnimationFrame(frame);
+}
+$("#interlude").setAttribute("tabindex","-1");
+$("#interlude").addEventListener("click",()=>{
+  if($("#interlude").dataset.mode!=="countdown") closeInterlude();
+});
+
+/* ---------- progress from stored sessions ---------- */
+function progressValues(){
+  const day=today(), start=+dayStart(day), end=+dayStart(addDays(day,1));
+  const completed=S.tasks.filter(t=>t.status==="done"&&t.done_at&&ymd(new Date(t.done_at))===day).length;
+  if(S.progress?.day!==day||!S.progress.rows) return {completed,minutes:null,streak:0};
+  let ms=0;
+  const days=new Set();
+  for(const row of S.progress.rows){
+    const finish=Date.parse(row.ended_at), begin=Date.parse(row.started_at);
+    if(row.outcome==="skip"||!Number.isFinite(finish)||!(finish>=begin)) continue;
+    days.add(ymd(new Date(finish)));
+    ms+=Math.max(0,Math.min(finish,end)-Math.max(begin,start));
+  }
+  let cursor=days.has(day)?day:addDays(day,-1), streak=0;
+  while(days.has(cursor)){streak++;cursor=addDays(cursor,-1);}
+  return {completed,minutes:Math.round(ms/60000),streak,focusedToday:days.has(day)};
+}
+function progressMarkup(){
+  const {completed,minutes,streak}=progressValues();
+  return `<span>今天完成 <b>${completed} 件</b></span>
+    <span>${minutes!==null?`专注 <b>${minutes} 分钟</b>`:S.progress?.error?"专注记录暂未读到":"正在读专注记录…"}</span>
+    ${streak?`<span>连续 <b>${streak} 天</b></span>`:""}`;
+}
+function paintProgress(){
+  const home=$("#today-progress"), ending=$("#completion-stats");
+  if(home) home.innerHTML=progressMarkup();
+  for(const view of ["projects","routines"]){
+    const note=$(`[data-note-page="${view}"] span`);
+    if(note) note.textContent=pageNoteText(view);
+  }
+  if(ending){
+    const {completed,minutes}=progressValues();
+    ending.textContent=`今天已完成 ${completed} 件 · ${minutes!==null?`专注 ${minutes} 分钟`:S.progress?.error?"专注记录暂未读到":"正在读专注记录…"}`;
+  }
+}
+async function readProgress(){
+  const user=S.user, day=today();
+  const request={day,rows:S.progress?.day===day?S.progress.rows:null};
+  S.progress=request;
+  try{
+    const rows=[], days=new Set(), size=100;
+    let upper=addDays(day,1), checkFrom=addDays(day,-1);
+    // Scan older dates only while the consecutive run reaches the current window.
+    for(;;){
+      const lower=addDays(upper,-32);
+      for(let offset=0;;offset+=size){
+        const {data,error}=await sb.from("sessions").select("id,started_at,ended_at,outcome")
+          .gte("ended_at",dayStart(lower).toISOString()).lt("ended_at",dayStart(upper).toISOString())
+          .order("ended_at",{ascending:false}).order("id").range(offset,offset+size-1);
+        if(S.user!==user||S.progress!==request) return;
+        if(error) throw error;
+        rows.push(...data);
+        for(const row of data) if(row.outcome!=="skip"&&Date.parse(row.ended_at)>=Date.parse(row.started_at)) days.add(ymd(new Date(row.ended_at)));
+        if(data.length<size) break;
+      }
+      while(checkFrom>=lower&&days.has(checkFrom)) checkFrom=addDays(checkFrom,-1);
+      if(checkFrom>=lower) break;
+      upper=lower;
+    }
+    request.rows=rows;
+  }catch(e){ request.error=true; }
+  if(S.user===user&&S.progress===request) paintProgress();
+}
+function recordProgress(session){
+  if(S.progress?.day===today()&&S.progress.rows){
+    S.progress.rows=[session,...S.progress.rows.filter(row=>row.id!==session.id)];
+  }
+  void readProgress();
 }
 
 /* ---------- recommendation (rules only, instant) ---------- */
@@ -292,6 +619,7 @@ async function loadAll(){
   if(S.user!==user||S.revision!==revision) return;
   Object.assign(S,{tasks,acts,rules,rulesError,settings,session:sessions[0]||null});
   S.loaded=true;
+  void readProgress();
 }
 async function readAll(){
   const user=S.user;
@@ -366,7 +694,7 @@ function changeView(view){
 }
 
 /* ---------- views ---------- */
-function render(){
+function render(swapped=false){
   const app=$("#app");
   app.classList.remove("is-desktop");
   if(!S.user){ stopTick(); app.innerHTML=loginView(); return; }
@@ -377,10 +705,10 @@ function render(){
   const desktop=!!desktopMedia?.matches, view=views[S.view];
   if(desktop) app.classList.add("is-desktop");
   if(desktop){
-    const current=view||allView;
-    app.innerHTML=`<div class="desktop-grid"><div class="stack desktop-home">${homeView()}</div>
-      <div class="stack desktop-right" data-view="${view?S.view:"all"}">${current()}</div></div>`;
-  }else app.innerHTML=(view||homeView)();
+    const current=view||allView, page=view?S.view:"all";
+    app.innerHTML=`<div class="desktop-grid"><div class="stack desktop-home">${homeView(swapped)}${pageEdge("home")}</div>
+      <div class="stack desktop-right" data-view="${page}">${current()}${pageEdge(page)}</div></div>`;
+  }else app.innerHTML=(view?view():homeView(swapped))+pageEdge(view?S.view:"home");
   if(S.view==="cal"){
     $("#calendar-filter").ontoggle=ev=>{
       if(ev.target.isConnected) save(userKey("calendarFilterOpen"),ev.target.open);
@@ -392,7 +720,7 @@ function render(){
 }
 function loginView(){
   return `<div style="margin:auto 0;display:flex;flex-direction:column;gap:12px">
-    <h1 class="title">Life OS</h1><p class="sub">用你注册时的邮箱和密码登录。</p>
+    <h1 class="title">Life OS</h1>${pageNote("home")}<p class="sub">用你注册时的邮箱和密码登录。</p>
     <form id="login" style="display:flex;flex-direction:column;gap:10px">
       <input class="f" id="em" type="email" autocomplete="email" placeholder="邮箱" required>
       <input class="f" id="pw" type="password" autocomplete="current-password" placeholder="密码（至少 8 位）" minlength="8" required>
@@ -419,7 +747,7 @@ async function resolveNudge(action,id){
   S.settings=r.settings;
   if(r.task) upsertLocal(r.task);
 }
-function homeView(){
+function homeView(swapped){
   const d=new Date(), left=minsLeftToSleep(), ranked=rank(), open=todayOpen();
   const filter=recommendationFilter();
   const pick=ranked.length?ranked[S.pick%ranked.length]:null;
@@ -428,51 +756,76 @@ function homeView(){
   const rest=open.filter(t=>!pick||pick.kind!=="task"||t.id!==pick.item.id).sort(taskOrder);
   const showToday=load(userKey("showToday"),false);
   return `
-  <div class="top home-top"><span class="date">周${WD[d.getDay()]} ${d.getMonth()+1}月${d.getDate()}日</span>
-    <span class="home-actions"><span class="sub">${left>0?"睡前还有 "+fmtMin(left):"已经过了睡觉时间"}</span>
-    <button class="iconbtn" data-act="cal" aria-label="日历">日历</button><button class="iconbtn" data-act="all" aria-label="全部任务">全部</button><button class="iconbtn" data-act="settings" aria-label="设置">设置</button></span></div>
-  <div class="chips" role="group" aria-label="现在的状态">${ENERGY.map(([k,l])=>`<button class="chip" data-act="energy" data-v="${k}" aria-pressed="${S.energy===k}">${l}</button>`).join("")}</div>
-  ${selectedButtons("recommendation-time",TIME_OPTIONS,filter.minutes,"","有多久")}
-  <div class="chips" role="group" aria-label="想做哪方面">${colorChips("recommendation-area",AREAS,filter.area,"不限类别")}</div>
-  ${locationControl()}
+  <div class="top home-top"><div class="home-date"><span class="date">周${WD[d.getDay()]} ${d.getMonth()+1}月${d.getDate()}日</span>
+    <span class="sub">${left>0?"睡前还有 "+fmtMin(left):"已经过了睡觉时间"}</span></div>
+    <span class="home-actions"><button class="iconbtn" data-act="cal" aria-label="日历">日历</button><button class="iconbtn" data-act="all" aria-label="全部任务">全部</button><button class="iconbtn" data-act="settings" aria-label="设置">设置</button></span></div>
+  ${pageNote("home")}
+  ${pick?focusCard(pick,ranked.length,swapped):`<section class="focus focus-hero hero-empty">
+    ${mark(2,"paper-mark")}<span class="hero-label">现在做</span><h1 class="title hero-title">现在没什么要做的</h1>
+    <p class="note">${filter.minutes||filter.area?"没有符合时间和类别的建议。可以改一下条件。":inboxTasks().length?"先整理收件箱，或在下面记一件事。":"可以在下面记一件事，之后进收件箱整理。"}</p></section>`}
+  <form class="capture" id="cap" autocomplete="off"><input id="capin" placeholder="记一下…（回车保存）" aria-label="记一下" value="${esc(load("capDraft",""))}"><button type="submit">记下</button></form>
+  <div class="today-progress" id="today-progress">${progressMarkup()}</div>
   ${inboxTasks().length?`<button class="row" data-act="inbox">收件箱 ${inboxTasks().length} 条</button>`:""}
   ${over?`<button class="warnbox" data-act="replan" style="text-align:left;border:0">今天排的事比睡前剩的时间多 ${fmtMin(planned-left)}。点这里一键重排</button>`:""}
-  ${pick?focusCard(pick,ranked.length):`<div class="focus"><span class="label">现在没什么要做的</span><p class="note">${filter.minutes||filter.area?"没有符合时间和类别的建议。可以改一下条件。":inboxTasks().length?"先整理收件箱，或在下面记一件事。":"可以在下面记一件事，之后进收件箱整理。"}</p></div>`}
-  <form class="capture" id="cap" autocomplete="off"><input id="capin" placeholder="记一下…（回车保存）" aria-label="记一下" value="${esc(load("capDraft",""))}"><button type="submit">记下</button></form>
+  <div class="recommend-controls">
+    <div class="chips" role="group" aria-label="现在的状态">${ENERGY.map(([k,l])=>`<button class="chip" data-act="energy" data-v="${k}" aria-pressed="${S.energy===k}">${l}</button>`).join("")}</div>
+    ${selectedButtons("recommendation-time",TIME_OPTIONS,filter.minutes,"","有多久")}
+    <div class="chips" role="group" aria-label="想做哪方面">${colorChips("recommendation-area",AREAS,filter.area,"不限类别")}</div>
+    ${locationControl()}
+  </div>
   ${nudgeCard()}
   ${missedRoutineCard()}
   ${rest.length?`<div><p class="label" style="margin:0 0 4px">今天还有 ${rest.length} 件</p><div class="list">${(showToday?rest:rest.slice(0,4)).map(t=>`
     <button class="row" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${t.est_min?fmtMin(t.est_min):""}</span></button>`).join("")}</div>${rest.length>4?actionButton("today-more",showToday?"收起":"看完今天的任务"):""}</div>`:""}
 `;
 }
-function focusCard(p,n){
-  if(p.kind==="act"){ const a=p.item;
-    return `<div class="focus"><span class="label">现在做</span><p class="title">${esc(a.title)}</p>
-      <span class="meta">${esc(p.why)} · 约 ${a.minutes} 分钟</span>
-      <span class="note">第一步：${esc((a.steps||[])[0]||"")}</span>
-      <button class="btn primary" data-act="act-open" data-id="${a.id}" style="margin-top:6px">看步骤，开始</button>
-      ${n>1?`<button class="btn" data-act="next">换一件</button>`:""}</div>`; }
-  const t=p.item, mins=t.est_min||25;
-  return `<div class="focus"><span class="label">现在做</span>
-    <button class="title" data-act="edit" data-id="${t.id}" style="all:unset;cursor:pointer;overflow-wrap:anywhere;font-size:22px;font-weight:600;line-height:1.35">${esc(t.title)}</button>
-    <span class="meta">${t.area?`<span class="dot" style="background:${areaColor(t.area)}"></span>${esc(t.area)} ·`:""} ${esc(p.why||"")}${p.why?" · ":""}约 ${fmtMin(mins)}</span>
-    ${t.next_step||t.progress_note?`<span class="note">上次做到：${esc(t.next_step?("下次先"+t.next_step.replace(/^下次先/,"")):t.progress_note)}</span>`:""}
-    <button class="btn primary" data-act="start" data-id="${t.id}" style="margin-top:6px">开始 · ${fmtMin(mins)}</button>
-    ${n>1?`<button class="btn" data-act="next">换一件</button>`:""}</div>`;
+function recommendationReason(p,mins){
+  const t=p.item, until=Date.parse(t.due_at)-Date.now();
+  if(p.kind==="task"&&Number.isFinite(until)&&until<72*36e5){
+    if(until<0) return "已过截止时间 · 先做 "+fmtMin(mins);
+    const due=new Date(t.due_at), day=ymd(due);
+    const label=day===today()?"今天":day===addDays(today(),1)?"明天":(due.getMonth()+1)+"月"+due.getDate()+"日";
+    return label+" "+pad(due.getHours())+":"+pad(due.getMinutes())+" 截止 · 先做 "+fmtMin(mins);
+  }
+  if(p.why) return p.why+" · 约 "+fmtMin(mins);
+  const idle=(Date.parse(today())-Date.parse(ymd(new Date(t.updated_at||t.created_at))))/864e5;
+  if(idle>=5) return "已有 "+idle+" 天没更新 · 约 "+fmtMin(mins);
+  return "现在可以留出 "+fmtMin(mins);
+}
+function focusCard(p,n,swapped){
+  const t=p.item, isAct=p.kind==="act", mins=isAct?t.minutes:t.est_min||25;
+  const index=paperIndex(t.area), steps=t.steps?.[0];
+  const resume=t.next_step?"下次先"+t.next_step.replace(/^下次先/,""):t.progress_note;
+  const title=isAct?`<h1 class="title hero-title">${esc(t.title)}</h1>`:
+    `<h1 class="title"><button class="title hero-title" data-act="edit" data-id="${t.id}">${esc(t.title)}</button></h1>`;
+  return `<section class="focus focus-hero${swapped?" hero-swapped":""}" data-paper="${index}">
+    ${mark(index,"paper-mark")}
+    <div class="hero-copy"><span class="hero-label">现在做 · ${esc(t.area||(isAct?"活动卡":"其他"))}</span>
+      ${title}
+      <p class="hero-reason">${esc(recommendationReason(p,mins))}</p>
+      ${resume?`<p class="hero-resume">上次做到：${esc(resume)}</p>`:steps?`<p class="hero-resume">第一步：${esc(steps)}</p>`:""}
+    </div>
+    <div class="hero-actions">
+      <button class="hero-start" data-act="${isAct?"act-open":"start"}" data-id="${t.id}"><strong>${isAct?"看步骤":"开始"}</strong><small>${mins} 分钟</small></button>
+      ${n>1?'<button class="hero-next" data-act="next">换一件</button>':""}
+    </div>
+  </section>`;
 }
 function sessionTarget(){ const s=S.session; if(!s) return {};
   if(s.activity_id){ const a=S.acts.find(x=>x.id===s.activity_id); return {title:a?a.title:"活动",act:a}; }
   const t=S.tasks.find(x=>x.id===s.task_id); return {title:t?t.title:"任务",task:t}; }
 function timerView(){
-  const s=S.session, tg=sessionTarget();
-  return `<div class="top"><span class="label">正在做</span></div>
-    <p class="title">${esc(tg.title)}</p>
-    <div class="ring" aria-live="polite"><svg viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="92" fill="none" stroke="var(--line)" stroke-width="8"/><circle id="arc" cx="100" cy="100" r="92" fill="none" stroke="var(--ink)" stroke-width="8" stroke-linecap="round" transform="rotate(-90 100 100)" stroke-dasharray="578" stroke-dashoffset="0"/></svg>
+  const tg=sessionTarget(), index=paperIndex((tg.task||tg.act)?.area);
+  return `<section class="timer-paper" data-paper="${index}">${mark(index,"paper-mark")}
+    <div class="top"><span class="label">正在做</span></div>
+    ${pageNote("timer")}
+    <h1 class="title">${esc(tg.title)}</h1>
+    <div class="ring" role="timer"><svg viewBox="0 0 200 200" aria-hidden="true"><circle class="ring-track" cx="100" cy="100" r="92" fill="none" stroke="var(--wash-mark)" stroke-width="8"/><circle class="ring-fill" id="arc" cx="100" cy="100" r="92" fill="none" stroke="var(--wash-mark)" stroke-width="8" stroke-linecap="round" transform="rotate(-90 100 100)" stroke-dasharray="578" stroke-dashoffset="0"/></svg>
       <div class="center"><div class="clock" id="clock">--:--</div><div class="sub" id="clocksub">还剩</div></div></div>
     <div class="chips" style="justify-content:center">${[-5,5,10].map(m=>`<button class="chip" data-act="adj" data-v="${m}">${m>0?"+":"−"}${Math.abs(m)} 分</button>`).join("")}</div>
     ${tg.task&&(tg.task.next_step||tg.task.progress_note)?`<p class="sub center">上次做到：${esc(tg.task.next_step||tg.task.progress_note)}</p>`:""}
     ${tg.act?`<ol class="steps">${(tg.act.steps||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ol><p class="faint">${esc(tg.act.done_when)}</p>`:""}
-    <button class="btn primary" data-act="stop" style="margin-top:auto">停下</button>`;
+    <button class="btn primary" data-act="stop">停下</button></section>`;
 }
 let tick=0;
 function startTick(){ stopTick(); const f=()=>{ const s=S.session; if(!s) return;
@@ -481,7 +834,7 @@ function startTick(){ stopTick(); const f=()=>{ const s=S.session; if(!s) return
   c.textContent=pad(Math.floor(a/60000))+":"+pad(Math.floor(a/1000)%60);
   sub.textContent=over?"超时了，想停就停":"还剩";
   arc.setAttribute("stroke-dashoffset",String(578*(over?1:1-ms/(s.planned_min*60000))));
-  arc.setAttribute("stroke",over?"var(--warn)":"var(--ink)"); }; f(); tick=setInterval(f,1000); }
+  arc.setAttribute("stroke",over?"var(--wash-ink)":"var(--wash-mark)"); }; f(); tick=setInterval(f,1000); }
 function stopTick(){ clearInterval(tick); }
 
 const actionButton=(act,label,v="")=>`<button type="button" class="chip" data-act="${act}" data-v="${esc(v)}">${label}</button>`;
@@ -494,6 +847,7 @@ function inboxView(){
   const focused=rows.find(t=>t.id===load(userKey("inboxFocus"),null))||rows[0];
   const actions=`<div class="chips">${[["today","排今天"],["tomorrow","排明天"],["someday","以后再说"],["important","标重要"],["delete","删除"]].map(([k,l])=>actionButton("inbox-write",l,k)).join("")}</div>`;
   return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button><span class="date">收件箱 ${inboxTasks().length} 条</span></div>
+    ${pageNote("inbox")}
     <input class="f" id="inboxq" aria-label="搜索收件箱" placeholder="搜索" value="${esc(state.q)}">
     <div class="chips">${colorChips("inbox-area",AREAS,state.area,"全部类别")}${actionButton("inbox-sort",state.oldest?"最早的在前":"最新的在前")}</div>
     ${rows.length?`<div class="list">${rows.map(t=>`<div class="row"><button type="button" class="chip" data-act="inbox-select" data-v="${t.id}" aria-label="多选 ${esc(t.title)}" aria-pressed="${selected.includes(t.id)}">✓</button><button class="row t" data-act="inbox-focus" data-v="${t.id}" aria-pressed="${focused.id===t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span>${esc(t.title)}</button></div>`).join("")}</div>
@@ -562,7 +916,7 @@ function projectsView(){
   if(!root){
     const items=S.tasks.filter(t=>t.kind==="project"&&visibleTask(t)&&matchesSearch(t.title,filter.q)&&(!filter.area||t.area===filter.area));
     items.sort((a,b)=>a.title.localeCompare(b.title,"zh"));
-    return `${detailNav("项目")}${itemSearch("projectq",filter.q,"搜索项目")}
+    return `${detailNav("项目")}${pageNote("projects")}${itemSearch("projectq",filter.q,"搜索项目")}
       <div class="chips">${colorChips("project-area",AREAS,filter.area,"全部类别")}</div>
       <button class="btn" data-act="project-new">新建项目</button>
       <div class="list">${items.length?items.map(t=>`<button class="row" data-act="project-open" data-v="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="sub">${projectTree(t).filter(x=>x.task.status==="done").length}/${projectTree(t).length}</span></button>`).join(""):'<p class="empty">这里没有符合条件的项目。</p>'}</div>`;
@@ -572,7 +926,7 @@ function projectsView(){
   const time=S.projectTime?.id===root.id?S.projectTime:{};
   const rows=tree.filter(({task})=>(!filter.hide||task.status!=="done")&&matchesSearch(task.title,filter.q));
   if(filter.sort==="priority") rows.sort((a,b)=>taskOrder(a.task,b.task));
-  return `${detailNav(esc(root.title),"project-back")}
+  return `${detailNav(esc(root.title),"project-back")}${pageNote("projects")}
     <section class="focus">
       <label class="label">完成 ${completed}/${tree.length}<progress value="${completed}" max="${tree.length||1}"></progress></label>
       <span class="sub">${time.error?'读取用时失败。'+actionButton("project-time","重试"):time.minutes!=null?"已用 "+fmtMin(time.minutes):"正在读取用时…"}</span>
@@ -606,10 +960,14 @@ function ensureProjectTime(){
 async function changeTask(id,data,msg,undo){
   if(!beginWrite()) return;
   try{
+    const justDone=data.status==="done"&&S.tasks.find(t=>t.id===id)?.status!=="done";
     const row=await updTask(id,data);
     upsertLocal(row);setPick(0);render();
-    if(undo) toast(msg,{label:"撤销",fn:()=>changeTask(id,undo,"已撤销")});
-    else if(msg) toast(msg);
+    const announce=()=>{
+      if(undo) toast(msg,{label:"撤销",fn:()=>changeTask(id,undo,"已撤销")});
+      else if(msg) toast(msg);
+    };
+    if(justDone) celebrate(false,announce); else announce();
   }catch(e){}finally{S.busy=false;}
 }
 async function projectAction(a,el){
@@ -704,7 +1062,7 @@ function routineView(){
   const all=S.tasks.filter(t=>t.kind==="routine"&&t.status!=="dropped");
   const rows=all.filter(t=>matchesSearch(t.title,filter.q)&&(filter.state==="all"||(filter.state==="paused")===!!t.routine_paused));
   rows.sort(filter.sort==="minutes"?(a,b)=>a.est_min-b.est_min:routineOrder);
-  return `${detailNav("每日例行")}${itemSearch("routineq",filter.q,"搜索例行")}
+  return `${detailNav("每日例行")}${pageNote("routines")}${itemSearch("routineq",filter.q,"搜索例行")}
     ${selectedButtons("routine-filter",[["all","全部"],["active","运行中"],["paused","已暂停"]],filter.state,"","例行状态")}
     ${selectedButtons("routine-sort",[["priority","按优先级"],["minutes","按时长"]],filter.sort,"","例行排序")}
     <button class="btn" data-act="routine-new">新建例行</button>
@@ -815,7 +1173,7 @@ function wishView(){
   const rows=all.filter(t=>(!f.hide||t.status!=="done")&&(!f.area||f.area===t.area)&&matchesSearch(t.title,f.q)&&
     (f.time==="all"||(f.time==="20"?t.est_min>0&&t.est_min<=20:f.time==="45"?t.est_min>20&&t.est_min<=45:t.est_min>45)));
   rows.sort(f.sort==="short"?(a,b)=>(a.est_min||Infinity)-(b.est_min||Infinity):projectOrder);
-  return `${detailNav("心愿单")}${itemSearch("wishq",f.q,"搜索心愿")}
+  return `${detailNav("心愿单")}${pageNote("wishes")}${itemSearch("wishq",f.q,"搜索心愿")}
     <div class="chips">${colorChips("wish-area",AREAS,f.area,"全部类别")}</div>
     ${selectedButtons("wish-time",[["all","不限时长"],["20","20 分钟以内"],["45","21–45 分钟"],["long","45 分钟以上"]],f.time,"","估计时长")}
     ${selectedButtons("wish-hide",[[0,"显示已完成"],[1,"隐藏已完成"]],+f.hide,"","完成状态")}
@@ -854,6 +1212,7 @@ function allView(){
   ts.sort(f.sort==="due"?((a,b)=>(a.due_at?Date.parse(a.due_at):Infinity)-(b.due_at?Date.parse(b.due_at):Infinity)):
     ((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)));
   return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button><span class="date">全部任务</span><button class="iconbtn" data-act="new">+ 新建</button></div>
+    ${pageNote("all")}
     <div class="chips">${actionButton("projects","项目")}${actionButton("routines","每日例行")}${actionButton("wishes","心愿单")}</div>
     <div class="search"><input class="f" id="allq" placeholder="搜索" value="${esc(f.q)}" aria-label="搜索任务"></div>
     <div class="chips" role="group" aria-label="状态"><button class="chip" data-act="fstatus" data-v="all" aria-pressed="${f.status==="all"}">所有状态</button>${STATUS.map(([k,l])=>`<button class="chip" data-act="fstatus" data-v="${k}" aria-pressed="${f.status===k}">${l} ${cnt(k)}</button>`).join("")}</div>
@@ -929,7 +1288,7 @@ function weekView(){
   const days=weekDays(calendarDay()), record=S.rec, f=calendarFilter();
   const ready=record.day===calendarDay()&&!!record.usage&&!record.error, failed=record.day===calendarDay()&&record.error;
   return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button><span class="daynav"><button class="iconbtn" data-act="cal-day" data-v="-7" aria-label="前一周">‹</button><span class="date">${days[0].slice(5)} 至 ${days[6].slice(5)}</span><button class="iconbtn" data-act="cal-day" data-v="7" aria-label="后一周">›</button></span>
-    <button class="iconbtn" data-act="cal-day" data-v="0">本周</button></div>${calendarTools()}
+    <button class="iconbtn" data-act="cal-day" data-v="0">本周</button></div>${pageNote("cal")}${calendarTools()}
     ${failed?`<p class="sub">没读到这一周的记录。 ${actionButton("retry-record","重试")}</p>`:""}
     <div class="week-grid">${days.map(day=>{
       const planned=S.tasks.filter(t=>t.plan_date===day&&calendarTask(t,f));
@@ -1140,13 +1499,14 @@ function calView(){
   const {rec,perApp,fun,work}=calendarRecords(day,ready?record:{});
   const all=[...plan,...rec]; const lo=Math.min(7,...all.map(b=>Math.floor(b.s/60))), hi=Math.max(24,...all.map(b=>Math.ceil(b.e/60)));
   const H=40, top=lo*60, px=m=>(m-top)/60*H, height=(hi-lo)*H;
-  const blk=b=>{const y=px(b.s), h=Math.max(16,px(b.e)-y-2); return `<${b.fixed?"button":"div"} ${b.fixed?`data-act="event-edit" data-id="${b.id}"`:""} class="blk${b.soft||b.fixed?" soft":""}" style="top:${y}px;height:${h}px;${b.soft||b.fixed?"":"background:"+b.color}${b.fixed?";box-shadow:inset 3px 0 0 "+b.color:""}"><b>${esc(b.title)}${b.open?" · 进行中":""}</b>${h>30?`<span>${pad(Math.floor(b.s/60)%24)}:${pad(b.s%60)}–${pad(Math.floor(b.e/60)%24)}:${pad(b.e%60)} · ${Math.round(b.minutes??b.e-b.s)} 分</span>`:""}</${b.fixed?"button":"div"}>`;};
+  const blk=b=>{const y=px(b.s), h=Math.max(16,px(b.e)-y-2); return `<${b.fixed?"button":"div"} ${b.fixed?`data-act="event-edit" data-id="${b.id}"`:""} class="blk${b.soft||b.fixed?" soft":""}" style="top:${y}px;height:${h}px;${b.soft||b.fixed?"":"--block-color:"+b.color}${b.fixed?";box-shadow:inset 3px 0 0 "+b.color:""}"><b>${esc(b.title)}${b.open?" · 进行中":""}</b>${h>30?`<span>${pad(Math.floor(b.s/60)%24)}:${pad(b.s%60)}–${pad(Math.floor(b.e/60)%24)}:${pad(b.e%60)} · ${Math.round(b.minutes??b.e-b.s)} 分</span>`:""}</${b.fixed?"button":"div"}>`;};
   let hrs=""; for(let h=lo+1;h<hi;h++) hrs+=`<span style="top:${(h-lo)*H}px">${pad(h%24)}:00</span>`;
   const nowM=wallMinutes(now), showNow=day===today()&&nowM>=top&&nowM<=hi*60;
   const dd=dayStart(day);
   return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button>
       <span class="daynav"><button class="iconbtn" data-act="cal-day" data-v="-1" aria-label="前一天">‹</button><span class="date">${dd.getMonth()+1}月${dd.getDate()}日 周${WD[dd.getDay()]}</span><button class="iconbtn" data-act="cal-day" data-v="1" aria-label="后一天">›</button></span>
       ${day!==today()?`<button class="iconbtn" data-act="cal-day" data-v="0">今天</button>`:"<span></span>"}</div>
+    ${pageNote("cal")}
     ${calendarTools()}
     <div class="sum">${ready?`<span>娱乐 <b>${fmtMin(Math.round(fun))}</b></span>${[...perApp].sort((a,b)=>b[1]-a[1]).map(([a,m])=>`<span><i class="dot" style="background:${appColor(a)}"></i>${esc(a)} ${Math.round(m)} 分</span>`).join("")}<span>做事 <b>${fmtMin(Math.round(work))}</b></span>`:failed?`<span class="sub">没读到这一天的记录。</span><button class="btn small" data-act="retry-record">重试</button>`:`<span class="sub">正在读取这一天的记录…</span>`}</div>
     ${unscheduled.length?`<div><p class="label" style="margin:0 0 4px">计划了、没定时间</p><div class="list">${unscheduled.map(t=>`<button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${t.est_min?fmtMin(t.est_min):""}</span></button>`).join("")}</div></div>`:""}
@@ -1207,7 +1567,12 @@ function editSheet(t,context={}){
     if(!beginWrite()) return;
     const btn=form.querySelector('[type="submit"]'); btn.disabled=true;
     for(const field of [...fields,...areas]) field.disabled=true;
-    try{ if(t.id) await updTask(t.id,data); else await createTask(data,"editor."+key); save(key,null); closeSheet(); toast(t.id?"保存了":"加好了"); render(); }
+    const justDone=st==="done"&&t.status!=="done";
+    try{
+      if(t.id) await updTask(t.id,data); else await createTask(data,"editor."+key);
+      save(key,null); closeSheet(); toast(t.id?"保存了":"加好了"); render();
+      if(justDone) celebrate();
+    }
     catch(err){ btn.disabled=false; }
     finally{ for(const field of [...fields,...areas]) field.disabled=false; S.busy=false; } };
 }
@@ -1309,7 +1674,9 @@ function stopSheet(){
         const planned=result.task?.plan_date;
         toast(planned?"排到"+(planned===addDays(today(),1)?"明天":"后天")+"了，下次从这里接着做":"存好了，下次从这里接着做");
       }
+      recordProgress(result.session);
       save(key,null); S.session=null; S.rec={}; S.projectTime=null; S.activityLikes=null; setPick(0); closeSheet(); render();
+      if(result.session.outcome==="done") celebrate(!!result.followup);
     }catch(e){ go.disabled=false; noteInput.disabled=false; if(nextInput) nextInput.disabled=false; if(followInput) followInput.disabled=false; errorText.textContent="没保存上，网络好了再点一次。"; }
     finally{ S.busy=false; } };
 }
@@ -1378,7 +1745,7 @@ function rulesView(){
     matchesSearch((ruleConditionLabel(r)||"")+" "+(r.area||S.acts.find(a=>a.id===r.activity_id)?.title||""),f.q));
   if(f.sort==="condition") rules.sort((a,b)=>a.condition_kind.localeCompare(b.condition_kind)||String(ruleConditionLabel(a)).localeCompare(String(ruleConditionLabel(b)),"zh"));
   else rules.sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
-  return `${detailNav("规则本","return-settings")}
+  return `${detailNav("规则本","return-settings")}${pageNote("rules")}
     ${itemSearch("ruleq",f.q,"搜索规则")}
     ${selectedButtons("rule-filter",[["all","全部"],["active","启用中"],["paused","已暂停"]],f.state,"","状态")}
     ${selectedButtons("rule-sort",[["recent","按添加时间"],["condition","按条件"]],f.sort,"","排序")}
@@ -1504,7 +1871,7 @@ function activitiesView(){
   const rows=all.filter(a=>matchesSearch(a.title,f.q)&&(!f.area||a.area===f.area)&&(f.state==="all"||(f.state==="active")===a.active));
   rows.sort((a,b)=>(f.sort==="likes"?(counts?.[b.id]||0)-(counts?.[a.id]||0):0)||
     b.weight-a.weight||a.title.localeCompare(b.title,"zh"));
-  return `${detailNav("活动卡","return-settings")}
+  return `${detailNav("活动卡","return-settings")}${pageNote("activities")}
     ${itemSearch("activityq",f.q,"搜索活动卡")}
     <div class="chips">${colorChips("activity-area",AREAS,f.area,"全部类别")}</div>
     ${selectedButtons("activity-filter",[["all","全部"],["active","启用中"],["paused","已暂停"]],f.state,"","活动卡状态")}
@@ -1574,7 +1941,9 @@ function activityAction(a,v){
 
 function settingsSheet(){
   const st=S.settings||{}, key=userKey("settingsDraft"), draft=load(key,{});
-  openSheet(`<h2>设置</h2>
+  const openingKey=userKey("openingEnabled");
+  openSheet(`<h2>设置</h2>${pageNote("settings")}
+    <label class="setting-switch"><input id="st-opening" type="checkbox" ${load(openingKey,true)?"checked":""}>打开时显示一句话</label>
     <div class="grid2"><div><p class="fl">一天从几点开始</p><input class="f" type="time" id="st-start" value="${esc(draft.start??(st.day_start||"08:00").slice(0,5))}"></div>
     <div><p class="fl">几点睡觉</p><input class="f" type="time" id="st-sleep" value="${esc(draft.sleep??(st.sleep_time||"23:30").slice(0,5))}"></div></div>
     <button class="btn" id="st-save">保存作息</button>
@@ -1585,6 +1954,7 @@ function settingsSheet(){
       <p class="sub">给 Siri、手表、耳机记东西用，不是你的密码。${st.device_key_hash?"已经生成过。重新生成后，旧钥匙立刻失效。":"还没生成。"}</p>
       <div id="keyout"></div><button class="btn" id="st-key">${st.device_key_hash?"重新生成钥匙":"生成钥匙"}</button></div>
     <button class="btn" id="st-out">退出登录</button>`,{type:"settings"});
+  $("#st-opening").onchange=ev=>save(openingKey,ev.target.checked);
   const start=$("#st-start"), sleep=$("#st-sleep"), saveButton=$("#st-save"), keyButton=$("#st-key"), keyout=$("#keyout");
   start.oninput=sleep.oninput=()=>save(key,{start:start.value,sleep:sleep.value});
   saveButton.onclick=async()=>{
@@ -1615,7 +1985,10 @@ function settingsSheet(){
 /* ---------- actions ---------- */
 async function startSession(data,nudged=false){
   if(S.session||!beginWrite()) return;
+  const user=S.user;
   try{
+    await beforeStart();
+    if(S.user!==user) return;
     const result=await q(sb.rpc("start_web_session",{p_task:data.task_id??null,p_activity:data.activity_id??null,p_min:data.planned_min}),"没开始成");
     S.session=result.session;
     if(result.task){
@@ -1637,7 +2010,7 @@ async function logout(){
 }
 document.addEventListener("click",async ev=>{
   const el=ev.target.closest("[data-act]"); if(!el) return; const a=el.dataset.act, id=el.dataset.id;
-  if(S.busy) return;
+  if(S.busy||!$("#interlude").hidden) return;
   if(a==="close-sheet") return closeSheet();
   if(a==="retry") return boot();
   if(a==="logout") return logout();
@@ -1659,7 +2032,7 @@ document.addEventListener("click",async ev=>{
   }
   if(a==="today-more"){const key=userKey("showToday");save(key,!load(key,false));return render();}
   if(a==="filter-expired"){S.all.hideExpired=!S.all.hideExpired;save("allFilter",S.all);return render();}
-  if(a==="next"){ setPick(S.pick+1); return render(); }
+  if(a==="next"){ setPick(S.pick+1); render(true); $(".hero-next")?.focus({preventScroll:true}); return; }
   if(a.startsWith("inbox-")) return inboxAction(a,el.dataset.v);
   if(a.startsWith("wish-")) return wishAction(a,el.dataset.v);
   if(a.startsWith("routine-")) return routineAction(a,el.dataset.v);
@@ -1764,9 +2137,20 @@ document.addEventListener("input",ev=>{
 document.addEventListener("change",ev=>{
   if(ev.target.id==="recommendation-place"){save(userKey("recommendationPlace"),ev.target.value);setPick(0);render();}
 });
-document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!S.busy&&!$("#sheet").hidden) closeSheet(); });
+document.addEventListener("keydown",e=>{
+  if(!$("#interlude").hidden){
+    if(e.key==="Tab") e.preventDefault();
+    if(e.key==="Escape"&&$("#interlude").dataset.mode!=="countdown") closeInterlude();
+    return;
+  }
+  if(e.key==="Escape"&&!S.busy&&!$("#sheet").hidden) closeSheet();
+});
 addEventListener("scroll",()=>{ if(S.loaded&&!S.session&&!S.restoring) save(userKey("scroll."+S.view),scrollY); },{passive:true});
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") refresh(); });
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState!=="visible") return;
+  if(S.loaded&&!S.busy&&$("#interlude").hidden) maybeOpening();
+  refresh();
+});
 setInterval(()=>{ if(document.visibilityState==="visible"&&!S.session&&$("#sheet").hidden) refresh(); },60000);
 
 /* ---------- boot ---------- */
@@ -1779,6 +2163,7 @@ async function boot(){
   if(S.user!==user) return;
   render();
   if(!S.loaded) return;
+  maybeOpening();
   S.restoring=true;
   scrollTo(0,load(userKey("scroll."+S.view),0));
   requestAnimationFrame(()=>{ S.restoring=false; });
@@ -1814,9 +2199,10 @@ async function boot(){
 sb.auth.onAuthStateChange((_e,session)=>{
   const u=session?session.user:null;
   if((u&&u.id)===(S.user&&S.user.id)) return;
+  closeInterlude();
   if(!$("#sheet").hidden) closeSheet();
   const toastBox=$("#toast"); toastBox.hidden=true; toastBox.innerHTML=""; clearTimeout(tt);
-  Object.assign(S,{user:u,loaded:false,loadError:false,tasks:[],acts:[],rules:[],rulesError:false,session:null,settings:null,rec:{},projectTime:null,activityLikes:null,pick:0});
+  Object.assign(S,{user:u,loaded:false,loadError:false,tasks:[],acts:[],rules:[],rulesError:false,session:null,settings:null,rec:{},projectTime:null,activityLikes:null,progress:null,openingChecked:false,pick:0});
   if(u){ S.pick=load(userKey("pick"),0); S.view=load(userKey("view"),"home"); S.cal.day=load(userKey("calendarDay"),null); }
   if(u) setTimeout(boot,0); else render();
 });
