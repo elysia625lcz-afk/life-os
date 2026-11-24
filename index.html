@@ -27,7 +27,7 @@ button{cursor:pointer}
   padding:calc(14px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-left)) calc(16px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-right))}
 .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .date{font-size:17px;font-weight:600}
-.sub{font-size:14px;color:var(--sub)}
+.sub{font-size:14px;color:var(--sub);overflow-wrap:anywhere}
 .faint{font-size:13px;color:var(--faint)}
 .iconbtn{border:0;background:transparent;color:var(--sub);font-size:14px;padding:6px 8px;border-radius:8px}
 .iconbtn:hover{background:var(--soft)}
@@ -39,8 +39,8 @@ button{cursor:pointer}
 .title{font-size:22px;font-weight:600;line-height:1.35;margin:0;overflow-wrap:anywhere}
 .meta{font-size:14px;color:var(--sub);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
-.note{font-size:15px}
-.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px 16px;font-size:15px;width:100%}
+.note{font-size:15px;overflow-wrap:anywhere}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px 16px;font-size:15px;width:100%;overflow-wrap:anywhere}
 .btn.primary{background:var(--primary);color:var(--on-primary);border-color:transparent;font-weight:600}
 .btn.small{width:auto;padding:7px 12px;font-size:14px;border-radius:10px}
 .btn:disabled{opacity:.5}
@@ -50,7 +50,7 @@ button{cursor:pointer}
 .row .t{flex:1;min-width:0;overflow-wrap:anywhere}
 .row.done .t{text-decoration:line-through;color:var(--faint)}
 .warnbox{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 12px;font-size:14px}
-.capture{margin-top:auto;display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 16px}
+.capture{display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 16px}
 .capture input{flex:1;min-width:0;border:0;background:transparent;font-size:16px;padding:6px 0;outline:none}
 .capture button{border:0;border-radius:999px;background:var(--soft);padding:8px 14px;font-size:14px}
 .empty{color:var(--sub);font-size:15px}
@@ -89,6 +89,25 @@ textarea.f{resize:vertical;min-height:70px}
 .nowline{position:absolute;left:0;right:0;border-top:2px solid var(--bad);z-index:2;pointer-events:none}
 .sum{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px}
 .sum span{display:inline-flex;align-items:center;gap:6px}
+.quadrants{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.quadrant{min-width:0;overflow-wrap:anywhere;padding:12px}
+@media(max-width:460px){.quadrant .chip{padding:4px 8px}}
+progress{display:block;width:100%;accent-color:#378ADD;margin-top:5px}
+.project-child{padding:4px 0 10px;border-top:1px solid var(--line);min-width:0}
+.stack{display:flex;flex-direction:column;gap:12px;min-width:0}
+.week-grid{display:grid;gap:10px}
+.week-day{padding:12px}
+.week-item{padding:4px 0;font-size:14px}
+.week-item small{display:block}
+.week-plan{gap:4px}
+.home-top{flex-wrap:wrap}
+.home-actions{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px}
+.desktop-grid{display:grid;grid-template-columns:minmax(300px,0.85fr) minmax(0,1.15fr);gap:28px;width:100%;align-items:start}
+.is-desktop{max-width:1480px;padding-inline:clamp(20px,3vw,48px)}
+.desktop-home,.desktop-right{min-width:0}
+.desktop-right{border-left:1px solid var(--line);padding-left:28px}
+.desktop-right[data-view="all"] > .top > [data-act="home"]{visibility:hidden}
+.desktop-right .week-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -116,13 +135,16 @@ const DEFAULT_ACTIVITIES=[
  {title:"听熟悉的音乐，伸展一下",minutes:10,steps:["放一首听过的、节奏平稳的歌，不刷推荐","慢慢活动肩膀、手腕和脖子","做几次胸背伸展和站姿小腿伸展","最后安静站一分钟"],done_when:"大概两首歌的时间就算完成",caution:"不追求拉到疼，不做高强度",tags:["运动"],weight:1}
 ];
 
-const S={user:null,tasks:[],acts:[],settings:null,session:null,energy:load("energy","mid"),pick:0,view:"home",
+const S={user:null,tasks:[],acts:[],rules:[],rulesError:false,settings:null,session:null,energy:load("energy","mid"),pick:0,view:"home",
   all:load("allFilter",{q:"",status:"todo",area:"",sort:"due"}),cal:{day:null},rec:{},loaded:false,busy:false,revision:0};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function load(k,d){try{return JSON.parse(localStorage.getItem("los."+k))??d;}catch(e){return d;}}
 function save(k,v){try{localStorage.setItem("los."+k,JSON.stringify(v));}catch(e){}}
 const userKey=k=>S.user.id+"."+k;
+function setPick(index){S.pick=index;save(userKey("pick"),index);}
+const desktopMedia=window.matchMedia?.("(min-width: 1024px)");
+desktopMedia?.addEventListener("change",()=>render());
 
 /* ---------- time ---------- */
 const pad=n=>String(n).padStart(2,"0");
@@ -131,8 +153,8 @@ const today=()=>ymd(new Date());
 const addDays=(s,n)=>{const [y,m,d]=s.split("-").map(Number);const x=new Date(y,m-1,d+n);return ymd(x);};
 const WD=["日","一","二","三","四","五","六"];
 const hm=t=>{if(!t)return null;const [h,m]=String(t).split(":").map(Number);return h*60+m;};
-function sleepAt(){ // bedtime in the current cycle, starting at day_start
-  const st=S.settings||{}; const sl=hm(st.sleep_time)??1410, ds=hm(st.day_start)??480;
+function sleepAt(settings=S.settings){ // bedtime in the current cycle, starting at day_start
+  const st=settings||{}; const sl=hm(st.sleep_time)??1410, ds=hm(st.day_start)??480;
   const n=new Date(); const b=new Date(n.getFullYear(),n.getMonth(),n.getDate(),Math.floor(sl/60),sl%60);
   const beforeDayStart=n.getHours()*60+n.getMinutes()<ds;
   b.setDate(b.getDate()+(sl<ds?1:0)-(beforeDayStart?1:0));
@@ -151,31 +173,74 @@ function dueText(t){
 }
 
 /* ---------- recommendation (rules only, instant) ---------- */
+const QUADRANTS=[
+  [1,"重要且紧急","#D85A30"],[2,"重要不紧急","#378ADD"],
+  [3,"紧急不重要","#BA7517"],[4,"其他","#1D9E75"]
+];
+const availableTask=t=>["todo","doing"].includes(t.status)&&!["routine","project"].includes(t.kind)&&visibleTask(t);
+const important=t=>t.is_important??[1,2].includes(t.quadrant);
+const urgent=t=>t.urgency_override??(!!t.due_at&&Date.parse(t.due_at)-Date.now()<=48*36e5);
+const quadrant=t=>important(t)?(urgent(t)?1:2):(urgent(t)?3:4);
+const dueOrder=t=>t.due_at?Date.parse(t.due_at):Infinity;
+const priorityOrder=(a,b)=>quadrant(a)-quadrant(b);
+const taskOrder=(a,b)=>priorityOrder(a,b)||(dueOrder(a)-dueOrder(b))||(a.est_min||25)-(b.est_min||25);
+function quadrantGrid(tasks){
+  return `<div class="quadrants">${QUADRANTS.map(([n,label,color])=>{
+    const rows=tasks.filter(t=>quadrant(t)===n);
+    return `<section class="focus quadrant" style="border-top:3px solid ${color}"><h2 class="fl">${label} · ${rows.length}</h2>
+      ${rows.length?rows.map(t=>`<div class="list"><button class="row" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span></button>${selectedButtons("quadrant-move",QUADRANTS.map(([i,l])=>[i,l]),n,t.id,"移动 "+t.title)}</div>`).join(""):'<p class="sub">这一格没有任务。</p>'}</section>`;
+  }).join("")}</div>`;
+}
+function selectedButtons(act,options,active,id,label){
+  return `<div class="chips" role="group" aria-label="${esc(label)}">${options.map(([v,l])=>`<button type="button" class="chip" data-act="${act}" data-id="${esc(id)}" data-v="${v}" aria-pressed="${v===active}">${l}</button>`).join("")}</div>`;
+}
+
+const TIME_OPTIONS=[[10,"10 分钟"],[20,"20 分钟"],[45,"45 分钟"],[0,"不限"]];
+const recommendationFilter=()=>load(userKey("recommendation"),{minutes:0,area:""});
 function rank(){
   const now=new Date(), td=today(), e=S.energy, out=[];
+  const {minutes,area}=recommendationFilter();
+  const late=now.getHours()>=23||minsLeftToSleep()<=0;
+  const rules=matchingRules(now);
+  const fits=(m,a)=>(!minutes||(m>0&&m<=minutes))&&(!area||area===a);
+  const wishes=[];
   for(const t of S.tasks){
-    if(!["todo","doing","inbox"].includes(t.status)) continue;
+    if(!availableTask(t)||!fits(t.est_min,t.area)||(late&&quadrant(t)!==1)) continue;
     if(t.plan_date&&t.plan_date>td) continue;
+    if(t.kind==="wish"&&!t.plan_date){
+      if(!late&&(minutes===0||minutes===45)&&t.est_min>0) wishes.push({kind:"task",item:t,why:"心愿单",boost:ruleBoost(rules,t,false)});
+      continue;
+    }
     let s=0, why="";
     if(t.due_at){const h=(new Date(t.due_at)-now)/36e5;
       if(h<0){s+=95;why="已过截止时间";} else if(h<12){s+=90;why=dueText(t);} else if(h<36){s+=60;why=dueText(t);} else if(h<72){s+=35;why=dueText(t);} }
     if(t.plan_date===td){s+=40;why=why||"排在今天";}
     else if(t.plan_date&&t.plan_date<td){s+=30;why=why||"之前没做完";}
     if(t.status==="doing"||t.next_step){s+=15;why=why||"接着上次";}
-    s+=[0,25,15,8,0][t.quadrant||0];
-    const urgent=t.due_at&&(new Date(t.due_at)-now)<12*36e5;
-    if(e==="low"&&!urgent){ if((t.est_min||30)>30) s-=40; if(t.energy==="high") s-=30; if(t.energy==="low") s+=15; }
+    s+=[0,95,40,20,0][quadrant(t)];
+    const pressing=urgent(t);
+    if(e==="low"&&!pressing){ if((t.est_min||30)>30) s-=40; if(t.energy==="high") s-=30; if(t.energy==="low") s+=15; }
     if(e==="mid"&&(t.est_min||0)>90) s-=10;
     if(e==="high"&&t.energy==="high") s+=10;
-    if((t.quadrant===1||t.quadrant===2)&&(now-new Date(t.updated_at))>7*864e5){s+=10;why=why||"放了一阵子了，要不要看看";}
-    if(t.status==="inbox"&&!t.due_at&&!t.plan_date) s-=5;
-    out.push({kind:"task",item:t,score:s,why});
+
+    const boost=ruleBoost(rules,t,false);
+    out.push({kind:"task",item:t,score:s+boost*30,boost,why:why||(boost?"符合你的规则":"")});
   }
-  if(e!=="high") for(const a of S.acts){ if(!a.active) continue;
-    out.push({kind:"act",item:a,score:(e==="low"?55:12)*(a.weight||1),why:e==="low"?"累了，做点不费脑的":"换换脑子"}); }
-  return out.sort((a,b)=>b.score-a.score);
+  if(!late) for(const a of S.acts){
+    const boost=ruleBoost(rules,a,true);
+    if(!a.active||a.archived||!fits(a.minutes,a.area)||(e==="high"&&!boost)) continue;
+    out.push({kind:"act",item:a,score:(e==="low"?55:12)*(a.weight||1)+boost*120,
+      why:boost?"符合你的规则":e==="low"?"累了，做点不费脑的":"换换脑子"});
+  }
+  const tasks=out.filter(p=>p.kind==="task").sort((a,b)=>priorityOrder(a.item,b.item)||
+    (quadrant(a.item)===1?dueOrder(a.item)-dueOrder(b.item):b.boost-a.boost)||(dueOrder(a.item)-dueOrder(b.item))||b.score-a.score||taskOrder(a.item,b.item));
+  if(!tasks.some(p=>urgent(p.item))) tasks.push(...wishes.sort((a,b)=>b.boost-a.boost||taskOrder(a.item,b.item)));
+  const cards=out.filter(p=>p.kind==="act").sort((a,b)=>b.score-a.score);
+  const firstCard=tasks.findIndex(p=>quadrant(p.item)!==1&&(p.score??(e==="low"?0:35))<(cards[0]?.score??-Infinity));
+  if(firstCard<0) return [...tasks,...cards];
+  return [...tasks.slice(0,firstCard),...cards,...tasks.slice(firstCard)];
 }
-function todayOpen(){ return S.tasks.filter(t=>t.plan_date===today()&&!["done","dropped","someday"].includes(t.status)); }
+function todayOpen(){ return S.tasks.filter(t=>t.plan_date===today()&&availableTask(t)); }
 
 /* ---------- data ---------- */
 async function q(p,label){
@@ -213,7 +278,19 @@ async function loadAll(){
     if(t.status!=="dropped"&&!tasks.some(row=>row.id===t.id)) tasks.push(t);
   }
   if(S.user!==user||S.revision!==revision) return;
-  Object.assign(S,{tasks,acts,settings,session:sessions[0]||null});
+  try{({tasks,settings}=await generateRoutines(tasks,settings));}catch(e){}
+  if(!sessions.length&&settings.nudge_day!==today()&&tasks.some(nudgeEligible)){
+    try{
+      const r=await q(sb.rpc("web_nudge",{p_day:today(),p_action:"claim"}),"提醒没更新");
+      settings=r.settings;
+      if(r.task) tasks=tasks.map(t=>t.id===r.task.id?r.task:t);
+    }catch(e){}
+  }
+  let rules=S.rules, rulesError=false;
+  try{rules=await q(sb.from("web_rules").select("*"),"没读到规则");}
+  catch(e){rulesError=true;}
+  if(S.user!==user||S.revision!==revision) return;
+  Object.assign(S,{tasks,acts,rules,rulesError,settings,session:sessions[0]||null});
   S.loaded=true;
 }
 async function readAll(){
@@ -231,7 +308,11 @@ async function refresh(){
     if(S.user!==user||S.busy) return;
     if(S.view==="cal"&&S.rec.day===calendarDay()&&!S.rec.loading&&!S.rec.error) {
       await loadRecord(calendarDay(),true);
-    }else render();
+    }else{
+      if(S.view==="projects") S.projectTime=null;
+      if(S.view==="activities") S.activityLikes=null;
+      render();
+    }
   }catch(e){}
 }
 function beginWrite(){
@@ -259,9 +340,25 @@ let tt=0;
 function toast(msg,action){ const el=$("#toast"); el.innerHTML=""; const s=document.createElement("span"); s.textContent=msg; el.append(s);
   if(action){const b=document.createElement("button");b.textContent=action.label;b.onclick=()=>{el.hidden=true;action.fn();};el.append(b);}
   el.hidden=false; clearTimeout(tt); tt=setTimeout(()=>el.hidden=true,action?6000:2600); }
-function openSheet(html,panel=null){ $("#sheet-card").innerHTML=html; $("#sheet").hidden=false;
-  $("#sheet-card").scrollTop=0; save(userKey("panel"),panel); }
-function closeSheet(){ $("#sheet").hidden=true; $("#sheet-card").innerHTML=""; if(S.user) save(userKey("panel"),null); }
+const sheetScrollKey=panel=>userKey("sheetScroll."+panel.type+"."+(panel.id||panel.scope||panel.context?.parent_id||panel.context?.kind||""));
+function openSheet(html,panel=null){
+  const card=$("#sheet-card");
+  if(S.panel&&!$("#sheet").hidden) save(sheetScrollKey(S.panel),card.scrollTop);
+  S.panel=panel;
+  card.innerHTML=html;$("#sheet").hidden=false;
+  card.scrollTop=panel?load(sheetScrollKey(panel),0):0;
+  save(userKey("panel"),panel);
+}
+function closeSheet(){
+  const card=$("#sheet-card");
+  if(S.user&&S.panel&&!$("#sheet").hidden) save(sheetScrollKey(S.panel),card.scrollTop);
+  S.panel=null;S.planRequest=null;
+  $("#sheet").hidden=true;card.innerHTML="";
+  if(S.user) save(userKey("panel"),null);
+}
+$("#sheet-card").addEventListener("scroll",()=>{
+  if(S.user&&S.panel&&!$("#sheet").hidden) save(sheetScrollKey(S.panel),$("#sheet-card").scrollTop);
+},{passive:true});
 function changeView(view){
   save(userKey("scroll."+S.view),scrollY);
   S.view=view; save(userKey("view"),view); render();
@@ -271,12 +368,27 @@ function changeView(view){
 /* ---------- views ---------- */
 function render(){
   const app=$("#app");
+  app.classList.remove("is-desktop");
   if(!S.user){ stopTick(); app.innerHTML=loginView(); return; }
   if(!S.loaded){ app.innerHTML=S.loadError?`<div style="margin:auto 0;display:flex;flex-direction:column;gap:12px"><p class="note">没读到你的数据，可能是网络不稳。</p><button class="btn primary" data-act="retry">重试</button><button class="btn" data-act="logout">退出登录</button></div>`:`<p class="empty">正在读取…</p>`; return; }
   if(S.session){ app.innerHTML=timerView(); startTick(); return; }
   stopTick();
-  app.innerHTML=S.view==="all"?allView():S.view==="cal"?calView():homeView();
-  if(S.view==="cal") ensureRecord();
+  const views={all:allView,cal:calView,inbox:inboxView,projects:projectsView,routines:routineView,wishes:wishView,rules:rulesView,activities:activitiesView};
+  const desktop=!!desktopMedia?.matches, view=views[S.view];
+  if(desktop) app.classList.add("is-desktop");
+  if(desktop){
+    const current=view||allView;
+    app.innerHTML=`<div class="desktop-grid"><div class="stack desktop-home">${homeView()}</div>
+      <div class="stack desktop-right" data-view="${view?S.view:"all"}">${current()}</div></div>`;
+  }else app.innerHTML=(view||homeView)();
+  if(S.view==="cal"){
+    $("#calendar-filter").ontoggle=ev=>{
+      if(ev.target.isConnected) save(userKey("calendarFilterOpen"),ev.target.open);
+    };
+    ensureRecord();
+  }
+  if(S.view==="projects") ensureProjectTime();
+  if(S.view==="activities"&&!S.activityLikes) void loadActivityLikes();
 }
 function loginView(){
   return `<div style="margin:auto 0;display:flex;flex-direction:column;gap:12px">
@@ -288,22 +400,50 @@ function loginView(){
       <button class="btn primary" type="submit">登录</button>
     </form></div>`;
 }
+function nudgeEligible(t){
+  const touched=t.updated_at===t.last_nudged_at?t.nudge_previous_touch_at||t.created_at:t.updated_at;
+  return t.status==="todo"&&["task","deadline"].includes(t.kind)&&important(t)&&!t.nudge_disabled&&
+    (!t.plan_date||t.plan_date<=today())&&Date.now()-Date.parse(touched)>=5*864e5&&
+    (!t.last_nudged_at||Date.now()-Date.parse(t.last_nudged_at)>=3*864e5);
+}
+function nudgeCard(){
+  if(S.settings.nudge_day!==today()) return "";
+  const t=S.tasks.find(t=>t.id===S.settings.nudge_task_id&&t.status==="todo"&&
+    (!t.plan_date||t.plan_date<=today())&&t.updated_at===t.last_nudged_at);
+  if(!t) return "";
+  return `<section class="focus" id="nudge"><span class="label">这件事是不是忘了？</span>
+    <p class="note">${esc(t.title)}</p><div class="chips">${[["start","现在做"],["tomorrow","排到明天"],["someday","以后再说"],["never","别再提醒"]].map(([v,l])=>actionButton("nudge",l,v)).join("")}</div></section>`;
+}
+async function resolveNudge(action,id){
+  const r=await q(sb.rpc("web_nudge",{p_day:today(),p_action:action,p_task:id}),"提醒没保存");
+  S.settings=r.settings;
+  if(r.task) upsertLocal(r.task);
+}
 function homeView(){
   const d=new Date(), left=minsLeftToSleep(), ranked=rank(), open=todayOpen();
+  const filter=recommendationFilter();
   const pick=ranked.length?ranked[S.pick%ranked.length]:null;
   const planned=open.reduce((s,t)=>s+(t.est_min||30),0);
   const over=planned>Math.max(0,left);
-  const rest=open.filter(t=>!pick||pick.kind!=="task"||t.id!==pick.item.id).slice(0,4);
+  const rest=open.filter(t=>!pick||pick.kind!=="task"||t.id!==pick.item.id).sort(taskOrder);
+  const showToday=load(userKey("showToday"),false);
   return `
-  <div class="top"><span class="date">周${WD[d.getDay()]} ${d.getMonth()+1}月${d.getDate()}日</span>
-    <span><span class="sub">${left>0?"睡前还有 "+fmtMin(left):"已经过了睡觉时间"}</span>
+  <div class="top home-top"><span class="date">周${WD[d.getDay()]} ${d.getMonth()+1}月${d.getDate()}日</span>
+    <span class="home-actions"><span class="sub">${left>0?"睡前还有 "+fmtMin(left):"已经过了睡觉时间"}</span>
     <button class="iconbtn" data-act="cal" aria-label="日历">日历</button><button class="iconbtn" data-act="all" aria-label="全部任务">全部</button><button class="iconbtn" data-act="settings" aria-label="设置">设置</button></span></div>
   <div class="chips" role="group" aria-label="现在的状态">${ENERGY.map(([k,l])=>`<button class="chip" data-act="energy" data-v="${k}" aria-pressed="${S.energy===k}">${l}</button>`).join("")}</div>
+  ${selectedButtons("recommendation-time",TIME_OPTIONS,filter.minutes,"","有多久")}
+  <div class="chips" role="group" aria-label="想做哪方面">${colorChips("recommendation-area",AREAS,filter.area,"不限类别")}</div>
+  ${locationControl()}
+  ${inboxTasks().length?`<button class="row" data-act="inbox">收件箱 ${inboxTasks().length} 条</button>`:""}
   ${over?`<button class="warnbox" data-act="replan" style="text-align:left;border:0">今天排的事比睡前剩的时间多 ${fmtMin(planned-left)}。点这里一键重排</button>`:""}
-  ${pick?focusCard(pick,ranked.length):`<div class="focus"><span class="label">现在没什么要做的</span><p class="note">在下面写一句，它就会出现在这里。</p></div>`}
-  ${rest.length?`<div><p class="label" style="margin:0 0 4px">今天还有</p><div class="list">${rest.map(t=>`
-    <button class="row" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${t.est_min?fmtMin(t.est_min):""}</span></button>`).join("")}</div></div>`:""}
-  <form class="capture" id="cap" autocomplete="off"><input id="capin" placeholder="记一下…（回车保存）" aria-label="记一下" value="${esc(load("capDraft",""))}"><button type="submit">记下</button></form>`;
+  ${pick?focusCard(pick,ranked.length):`<div class="focus"><span class="label">现在没什么要做的</span><p class="note">${filter.minutes||filter.area?"没有符合时间和类别的建议。可以改一下条件。":inboxTasks().length?"先整理收件箱，或在下面记一件事。":"可以在下面记一件事，之后进收件箱整理。"}</p></div>`}
+  <form class="capture" id="cap" autocomplete="off"><input id="capin" placeholder="记一下…（回车保存）" aria-label="记一下" value="${esc(load("capDraft",""))}"><button type="submit">记下</button></form>
+  ${nudgeCard()}
+  ${missedRoutineCard()}
+  ${rest.length?`<div><p class="label" style="margin:0 0 4px">今天还有 ${rest.length} 件</p><div class="list">${(showToday?rest:rest.slice(0,4)).map(t=>`
+    <button class="row" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${t.est_min?fmtMin(t.est_min):""}</span></button>`).join("")}</div>${rest.length>4?actionButton("today-more",showToday?"收起":"看完今天的任务"):""}</div>`:""}
+`;
 }
 function focusCard(p,n){
   if(p.kind==="act"){ const a=p.item;
@@ -344,18 +484,383 @@ function startTick(){ stopTick(); const f=()=>{ const s=S.session; if(!s) return
   arc.setAttribute("stroke",over?"var(--warn)":"var(--ink)"); }; f(); tick=setInterval(f,1000); }
 function stopTick(){ clearInterval(tick); }
 
+const actionButton=(act,label,v="")=>`<button type="button" class="chip" data-act="${act}" data-v="${esc(v)}">${label}</button>`;
+const inboxTasks=()=>S.tasks.filter(t=>t.status==="inbox");
+function inboxView(){
+  const state=load(userKey("inboxFilter"),{q:"",area:"",oldest:true});
+  const rows=inboxTasks().filter(t=>(!state.area||t.area===state.area)&&t.title.toLowerCase().includes(state.q.trim().toLowerCase()));
+  rows.sort((a,b)=>(state.oldest?1:-1)*(Date.parse(a.created_at)-Date.parse(b.created_at)));
+  const selected=load(userKey("inboxSelected"),[]).filter(id=>rows.some(t=>t.id===id));
+  const focused=rows.find(t=>t.id===load(userKey("inboxFocus"),null))||rows[0];
+  const actions=`<div class="chips">${[["today","排今天"],["tomorrow","排明天"],["someday","以后再说"],["important","标重要"],["delete","删除"]].map(([k,l])=>actionButton("inbox-write",l,k)).join("")}</div>`;
+  return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button><span class="date">收件箱 ${inboxTasks().length} 条</span></div>
+    <input class="f" id="inboxq" aria-label="搜索收件箱" placeholder="搜索" value="${esc(state.q)}">
+    <div class="chips">${colorChips("inbox-area",AREAS,state.area,"全部类别")}${actionButton("inbox-sort",state.oldest?"最早的在前":"最新的在前")}</div>
+    ${rows.length?`<div class="list">${rows.map(t=>`<div class="row"><button type="button" class="chip" data-act="inbox-select" data-v="${t.id}" aria-label="多选 ${esc(t.title)}" aria-pressed="${selected.includes(t.id)}">✓</button><button class="row t" data-act="inbox-focus" data-v="${t.id}" aria-pressed="${focused.id===t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span>${esc(t.title)}</button></div>`).join("")}</div>
+    <div class="focus"><span class="label">${selected.length?`处理选中的 ${selected.length} 条`:"正在整理"}</span>${selected.length?"":`<button class="row" data-act="edit" data-id="${focused.id}">${esc(focused.title)}</button>`}${actions}</div>`:`<p class="empty">${inboxTasks().length?"没有符合筛选条件的条目。":"收件箱整理完了。"}</p>`}`;
+}
+function colorChips(act,options,active,all){
+  const chips=options.map(([v,color])=>`<button type="button" class="chip" data-act="${act}" data-v="${esc(v)}" aria-pressed="${v===active}"><span class="dot" style="background:${color}"></span> ${esc(v)}</button>`);
+  if(all) chips.unshift(`<button type="button" class="chip" data-act="${act}" data-v="" aria-pressed="${!active}">${all}</button>`);
+  return chips.join("");
+}
+async function inboxAction(a,v){
+  const key=userKey("inboxSelected"), focusKey=userKey("inboxFocus"), filterKey=userKey("inboxFilter");
+  const rows=[...document.querySelectorAll('[data-act="inbox-focus"]')];
+  const selected=load(key,[]);
+  if(a==="inbox-focus"){save(focusKey,v);render();return;}
+  if(a==="inbox-select"){save(key,selected.includes(v)?selected.filter(id=>id!==v):[...selected,v]);render();return;}
+  if(a==="inbox-area"||a==="inbox-sort"){
+    const filter=load(filterKey,{q:"",area:"",oldest:true});
+    if(a==="inbox-area") filter.area=v; else filter.oldest=!filter.oldest;
+    save(filterKey,filter);render();return;
+  }
+  const focus=rows.find(b=>b.getAttribute("aria-pressed")==="true")?.dataset.v;
+  const visible=rows.map(b=>b.dataset.v), batch=selected.filter(id=>visible.includes(id));
+  const ids=batch.length?batch:focus?[focus]:[];
+  if(!ids.length||!beginWrite()) return;
+  const changes=v==="important"?{is_important:true}:v==="delete"?{status:"dropped"}:
+    v==="someday"?{status:"someday",plan_date:null,plan_start:null}:
+    {status:"todo",plan_date:addDays(today(),v==="tomorrow"?1:0),plan_start:null};
+  try{
+    const updated=await q(sb.from("tasks").update(changes).in("id",ids).eq("status","inbox").select());
+    updated.forEach(t=>patchLocal(t.id,t));
+    save(key,selected.filter(id=>!ids.includes(id)));
+    const index=visible.indexOf(focus);
+    save(focusKey,visible.slice(index+1).find(id=>!ids.includes(id))||visible.find(id=>!ids.includes(id))||null);
+    render();
+    if(v==="delete"&&updated.length){
+      toast(`已删除 ${updated.length} 条`,{label:"撤销",fn:async()=>{
+        if(!beginWrite()) return;
+        try{
+          const restored=await q(sb.from("tasks").update({status:"inbox"}).in("id",updated.map(t=>t.id)).eq("status","dropped").select());
+          restored.forEach(upsertLocal);render();
+        }catch(e){}finally{S.busy=false;}
+      }});
+    }else toast(updated.length?`已处理 ${updated.length} 条`:"这些条目已被整理。");
+  }catch(e){}finally{S.busy=false;}
+}
+function upsertLocal(t){
+  if(S.tasks.some(row=>row.id===t.id)) patchLocal(t.id,t);
+  else S.tasks.push(t);
+}
+
+const visibleTask=t=>t.status!=="dropped"&&(!t.parent_id||S.tasks.some(p=>p.id===t.parent_id&&p.status!=="dropped"&&(!p.parent_id||S.tasks.some(root=>root.id===p.parent_id&&root.status!=="dropped"))));
+const detailNav=(title,back="all")=>`<div class="top"><button class="iconbtn" data-act="${back}">‹ 返回</button><span class="date">${title}</span></div>`;
+const itemSearch=(id,value,label)=>`<input class="f" id="${id}" placeholder="搜索" aria-label="${label}" value="${esc(value)}">`;
+const matchesSearch=(value,query)=>value.toLowerCase().includes(query.trim().toLowerCase());
+const PROJECT_FILTER={q:"",area:"",hide:false,sort:"manual"};
+const projectFilterName=id=>id?"projectFilter."+id:"projectFilter";
+const projectOrder=(a,b)=>(a.position??0)-(b.position??0)||String(a.created_at).localeCompare(String(b.created_at))||a.id.localeCompare(b.id);
+const children=id=>S.tasks.filter(t=>t.parent_id===id&&visibleTask(t)).sort(projectOrder);
+function projectTree(root){
+  return children(root.id).flatMap(task=>[{task,depth:1},...children(task.id).map(child=>({task:child,depth:2}))]);
+}
+function projectsView(){
+  const id=load(userKey("projectId"),null), root=S.tasks.find(t=>t.id===id&&t.kind==="project"&&visibleTask(t));
+  const key=userKey(projectFilterName(root?.id)), filter=load(key,PROJECT_FILTER);
+  if(!root){
+    const items=S.tasks.filter(t=>t.kind==="project"&&visibleTask(t)&&matchesSearch(t.title,filter.q)&&(!filter.area||t.area===filter.area));
+    items.sort((a,b)=>a.title.localeCompare(b.title,"zh"));
+    return `${detailNav("项目")}${itemSearch("projectq",filter.q,"搜索项目")}
+      <div class="chips">${colorChips("project-area",AREAS,filter.area,"全部类别")}</div>
+      <button class="btn" data-act="project-new">新建项目</button>
+      <div class="list">${items.length?items.map(t=>`<button class="row" data-act="project-open" data-v="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="sub">${projectTree(t).filter(x=>x.task.status==="done").length}/${projectTree(t).length}</span></button>`).join(""):'<p class="empty">这里没有符合条件的项目。</p>'}</div>`;
+  }
+  const tree=projectTree(root), completed=tree.filter(({task})=>task.status==="done").length;
+  const next=tree.find(({task})=>availableTask(task)&&!children(task.id).some(t=>t.status!=="done"))?.task;
+  const time=S.projectTime?.id===root.id?S.projectTime:{};
+  const rows=tree.filter(({task})=>(!filter.hide||task.status!=="done")&&matchesSearch(task.title,filter.q));
+  if(filter.sort==="priority") rows.sort((a,b)=>taskOrder(a.task,b.task));
+  return `${detailNav(esc(root.title),"project-back")}
+    <section class="focus">
+      <label class="label">完成 ${completed}/${tree.length}<progress value="${completed}" max="${tree.length||1}"></progress></label>
+      <span class="sub">${time.error?'读取用时失败。'+actionButton("project-time","重试"):time.minutes!=null?"已用 "+fmtMin(time.minutes):"正在读取用时…"}</span>
+      ${next?`<button class="btn primary" data-act="start" data-id="${next.id}">继续 · ${esc(next.title)}</button>`:"<span class='sub'>没有可以开始的子任务。</span>"}
+    </section>
+    <div class="chips">${actionButton("project-child","加子任务",root.id)}${actionButton("project-edit","编辑项目",root.id)}</div>
+    ${itemSearch("projectq",filter.q,"搜索子任务")}
+    <div class="chips">${selectedButtons("project-hide",[[0,"显示已完成"],[1,"隐藏已完成"]],+filter.hide,"","完成状态")}
+    ${selectedButtons("project-sort",[["manual","按手动顺序"],["priority","按优先级"]],filter.sort,"","排序")}</div>
+    <p class="sub">显示 ${rows.length}/${tree.length} 条</p>
+    ${rows.length?`<div class="list">${rows.map(({task:t,depth})=>`<section class="project-child" style="margin-inline-start:${depth===2?18:0}px"><button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="sub">${t.est_min?fmtMin(t.est_min):""}</span></button>
+      <div class="chips">${actionButton("project-done",t.status==="done"?"取消完成":"完成",t.id)}
+      ${filter.sort==="manual"?[["up","上移"],["down","下移"]].map(([v,l])=>{
+        const siblings=children(t.parent_id), i=siblings.findIndex(x=>x.id===t.id);
+        if(!siblings[i+(v==="up"?-1:1)]) return "";
+        return `<button class="chip" data-act="project-order" data-id="${t.id}" data-v="${v}">${l}</button>`;
+      }).join(""):""}
+      ${depth===1?actionButton("project-child","加章节任务",t.id):""}</div></section>`).join("")}</div>`:'<p class="empty">没有符合条件的子任务。</p>'}`;
+}
+async function loadProjectTime(id){
+  const request={id};
+  S.projectTime=request;
+  try{request.minutes=await q(sb.rpc("web_project_minutes",{p_project:id}),"读取用时失败");}
+  catch(e){request.error=true;}
+  if(S.projectTime===request&&S.view==="projects") render();
+}
+function ensureProjectTime(){
+  const id=load(userKey("projectId"),null);
+  if(id&&S.projectTime?.id!==id) void loadProjectTime(id);
+}
+async function changeTask(id,data,msg,undo){
+  if(!beginWrite()) return;
+  try{
+    const row=await updTask(id,data);
+    upsertLocal(row);setPick(0);render();
+    if(undo) toast(msg,{label:"撤销",fn:()=>changeTask(id,undo,"已撤销")});
+    else if(msg) toast(msg);
+  }catch(e){}finally{S.busy=false;}
+}
+async function projectAction(a,el){
+  const v=el.dataset.v, key=userKey(projectFilterName(load(userKey("projectId"),null)));
+  const filter=load(key,PROJECT_FILTER);
+  if(a==="project-open"||a==="project-back"){
+    save(userKey("projectId"),a==="project-open"?v:null);
+    S.projectTime=null;render();return;
+  }
+  if(a==="project-time") return loadProjectTime(load(userKey("projectId"),null));
+  if(a==="project-new") return editSheet(null,{kind:"project"});
+  if(a==="project-edit") return editSheet(S.tasks.find(t=>t.id===v));
+  if(a==="project-child") return editSheet(null,{kind:"task",parent_id:v});
+  const t=S.tasks.find(t=>t.id===(el.dataset.id||v));
+  if(a==="project-done"&&t){
+    const done=t.status==="done";
+    return changeTask(t.id,{status:done?"todo":"done",done_at:done?null:new Date().toISOString()},done?"已取消完成":"已完成",{status:t.status,done_at:t.done_at});
+  }
+  if(a==="project-order"&&t){
+    const siblings=children(t.parent_id), i=siblings.findIndex(x=>x.id===t.id), j=i+(v==="up"?-1:1);
+    if(!siblings[j]||!beginWrite()) return;
+    [siblings[i],siblings[j]]=[siblings[j],siblings[i]];
+    try{
+      const updated=await q(sb.rpc("web_order_children",{p_parent:t.parent_id,p_ids:siblings.map(x=>x.id)}),"排序没保存");
+      updated.forEach(upsertLocal);render();
+    }catch(e){}finally{S.busy=false;}
+    return;
+  }
+  if(a==="project-hide") filter.hide=v==="1";
+  if(a==="project-sort") filter.sort=v;
+  if(a==="project-area") filter.area=v;
+  save(key,filter);render();
+}
+
+const WEEKDAYS=[[1,"周一"],[2,"周二"],[3,"周三"],[4,"周四"],[5,"周五"],[6,"周六"],[7,"周日"]];
+const eventOn=(ev,day)=>!ev.archived&&(ev.on_date===day||(!ev.on_date&&ev.repeat_days?.includes(isoDow(day))&&
+  (!ev.valid_from||ev.valid_from<=day)&&(!ev.valid_until||day<=ev.valid_until)));
+const clockLabel=m=>m===1440?"24:00":pad(Math.floor(m/60))+":"+pad(m%60);
+function freeSlots(day,events,tasks,settings,scheduleFrom=null){
+  if(day<today()) return [];
+  const start=hm(settings.day_start)??480, sleep=hm(settings.sleep_time)??1410;
+  const windows=sleep<start?[[0,sleep],[start,1440]]:[[start,sleep]];
+  const now=new Date(), nowMin=wallMinutes(now)+(now.getSeconds()||now.getMilliseconds()?1:0);
+  const bedtime=sleepAt(settings), bedtimeDay=ymd(bedtime);
+  const first=day===today()?Math.max(nowMin,scheduleFrom??0):0;
+  const last=day===today()?(bedtimeDay<day?0:bedtimeDay===day?wallMinutes(bedtime):1440):1440;
+  const busy=events.filter(e=>eventOn(e,day)).map(e=>[hm(e.start_time),hm(e.end_time)]);
+  for(const t of tasks){
+    if(t.plan_date===day&&t.plan_start&&!["done","dropped","someday","inbox"].includes(t.status)&&!["project","routine"].includes(t.kind)){
+      const s=hm(t.plan_start);busy.push([s,s+(t.est_min||25)]);
+    }
+  }
+  busy.sort((a,b)=>a[0]-b[0]);
+  const slots=[];
+  for(const [start,end] of windows){
+    let cursor=Math.max(start,first);const limit=Math.min(end,last);
+    for(const [a,b] of busy){
+      if(b<=cursor) continue;
+      if(a>=limit) break;
+      if(a>cursor) slots.push([cursor,a]);
+      cursor=Math.max(cursor,b);
+    }
+    if(cursor<limit) slots.push([cursor,limit]);
+  }
+  return slots;
+}
+function reserveSlot(slots,minutes,limit=1440){
+  const slot=slots.find(([start,end])=>start+minutes<=Math.min(end,limit));
+  if(!slot) return null;
+  const start=slot[0];slot[0]+=minutes;
+  return clockLabel(start);
+}
+const routineDays=t=>t.routine_days||WEEKDAYS.map(([day])=>day);
+const activeRoutine=t=>t.kind==="routine"&&t.status!=="dropped"&&!t.routine_paused;
+const routineOrder=(a,b)=>(a.routine_priority??2)-(b.routine_priority??2)||taskOrder(a,b)||a.title.localeCompare(b.title,"zh");
+async function generateRoutines(tasks,settings){
+  const day=today();
+  const templates=tasks.filter(t=>activeRoutine(t)&&routineDays(t).includes(isoDow(day))).sort(routineOrder);
+  if(!templates.length||settings.routine_generated_day>=day) return {tasks,settings};
+  const events=await q(sb.from("events").select("*"),"没读到固定日程");
+  const slots=freeSlots(day,events,tasks,settings), plan=[];
+  for(const t of templates){
+    const start=reserveSlot(slots,t.est_min||25);
+    if(start!==null) plan.push({template_id:t.id,start});
+  }
+  const result=await q(sb.rpc("web_generate_routines",{p_day:day,p_plan:plan,p_now:localTimestamp()}),"例行没生成");
+  const generated=new Set(result.tasks.map(t=>t.id));
+  return {tasks:[...tasks.filter(t=>!generated.has(t.id)),...result.tasks.filter(t=>t.status!=="dropped")],settings:result.settings};
+}
+function routineView(){
+  const filter=load(userKey("routineFilter"),{q:"",state:"all",sort:"priority"});
+  const all=S.tasks.filter(t=>t.kind==="routine"&&t.status!=="dropped");
+  const rows=all.filter(t=>matchesSearch(t.title,filter.q)&&(filter.state==="all"||(filter.state==="paused")===!!t.routine_paused));
+  rows.sort(filter.sort==="minutes"?(a,b)=>a.est_min-b.est_min:routineOrder);
+  return `${detailNav("每日例行")}${itemSearch("routineq",filter.q,"搜索例行")}
+    ${selectedButtons("routine-filter",[["all","全部"],["active","运行中"],["paused","已暂停"]],filter.state,"","例行状态")}
+    ${selectedButtons("routine-sort",[["priority","按优先级"],["minutes","按时长"]],filter.sort,"","例行排序")}
+    <button class="btn" data-act="routine-new">新建例行</button>
+    <p class="sub">显示 ${rows.length}/${all.length} 条。每天打开时，按空闲时间生成。</p>
+    ${rows.length?`<div class="list">${rows.map(t=>`<section class="project-child"><button class="row" data-act="routine-edit" data-v="${t.id}"><span class="t">${esc(t.title)}</span><span class="sub">${fmtMin(t.est_min||25)}</span></button><p class="fl">${routineDays(t).map(day=>WEEKDAYS[day-1][1]).join("、")} · ${t.routine_paused?"已暂停":"运行中"}</p>
+    ${actionButton("routine-toggle",t.routine_paused?"恢复":"暂停",t.id)}</section>`).join("")}</div>`:'<p class="empty">没有符合条件的例行。</p>'}`;
+}
+function missedRoutineCard(){
+  const missed=S.tasks.filter(t=>t.routine_template_id&&availableTask(t)&&t.plan_date<today()&&t.plan_date).sort((a,b)=>a.plan_date.localeCompare(b.plan_date));
+  const t=missed[0];
+  return t?`<section class="focus" id="missed-routine"><span class="label">${missed.length} 条没做完的例行</span><p class="note">「${esc(t.title)}」要接着做吗？</p>
+    <div class="chips">${actionButton("routine-move","挪到今天",t.id)}${actionButton("routine-skip","跳过",t.id)}</div></section>`:"";
+}
+function routineSheet(t){
+  const key=userKey("routineDraft."+(t?.id||"new"));
+  const draft=load(key,{title:t?.title||"",mins:t?.est_min||25,priority:t?.routine_priority??2,days:t?routineDays(t):[...WEEKDAYS.map(([day])=>day)]});
+  openSheet(`<h2>${t?"编辑例行":"新建例行"}</h2><form id="routine-form" class="stack">
+    <label><span class="fl">标题</span><input class="f" id="routine-title" required maxlength="300" value="${esc(draft.title)}"></label>
+    <label><span class="fl">分钟数</span><input class="f" id="routine-min" type="number" min="1" max="600" required value="${esc(draft.mins)}"></label>
+    <div><p class="fl">每周哪几天</p><div class="chips">${weekdayButtons(draft.days)}</div></div>
+    <label><span class="fl">优先级</span><select class="f" id="routine-priority">${[[1,"高"],[2,"一般"],[3,"低"]].map(([v,l])=>`<option value="${v}" ${+draft.priority===v?"selected":""}>${l}</option>`).join("")}</select></label>
+    <p class="err" id="routine-err"></p><div class="grid2">${t?`<button type="button" class="btn" data-act="del" data-id="${t.id}">删除</button>`:'<button type="button" class="btn" data-act="close-sheet">取消</button>'}<button class="btn primary" type="submit">保存</button></div>
+    </form>`,{type:"routine",id:t?.id||null});
+  const form=$("#routine-form"), fields=[...form.querySelectorAll("input,select,button")];
+  const days=bindWeekdays(form,draft.days,keep);
+  function keep(){
+    Object.assign(draft,{title:$("#routine-title").value,mins:$("#routine-min").value,priority:$("#routine-priority").value,days:[...days]});
+    save(key,draft);
+  }
+  form.oninput=keep;
+  form.onsubmit=async ev=>{
+    ev.preventDefault();keep();
+    const minutes=+draft.mins, title=draft.title.trim();
+    if(!title||!Number.isInteger(minutes)||minutes<1||minutes>600||!days.size){
+      $("#routine-err").textContent="写上标题、1–600 分钟，并选至少一天。";return;
+    }
+    if(!beginWrite()) return;
+    fields.forEach(f=>f.disabled=true);
+    const data={title,est_min:minutes,routine_priority:+draft.priority,routine_days:[...days].sort()};
+    try{
+      if(t) await updTask(t.id,data);
+      else await createTask({...data,status:"todo",kind:"routine"},"routine");
+      save(key,null);closeSheet();render();toast("例行已保存");
+      S.busy=false;void refresh();
+    }catch(e){}finally{fields.forEach(f=>f.disabled=false);S.busy=false;}
+  };
+}
+function weekdayButtons(days){
+  return WEEKDAYS.map(([day,label])=>`<button type="button" class="chip" data-weekday="${day}" aria-pressed="${days.includes(day)}">${label}</button>`).join("");
+}
+function bindWeekdays(form,initial,onChange){
+  const selected=new Set(initial);
+  form.querySelectorAll("[data-weekday]").forEach(b=>b.onclick=()=>{
+    if(S.busy) return;
+    const day=+b.dataset.weekday;
+    if(selected.has(day)) selected.delete(day);else selected.add(day);
+    b.setAttribute("aria-pressed",selected.has(day));onChange();
+  });
+  return selected;
+}
+async function routineAction(a,v){
+  const key=userKey("routineFilter"), filter=load(key,{q:"",state:"all",sort:"priority"});
+  if(a==="routine-filter"||a==="routine-sort"){
+    filter[a==="routine-filter"?"state":"sort"]=v;save(key,filter);render();return;
+  }
+  if(a==="routine-new") return routineSheet(null);
+  const t=S.tasks.find(t=>t.id===v);
+  if(!t) return;
+  if(a==="routine-edit") return routineSheet(t);
+  if(a==="routine-toggle") return changeTask(t.id,{routine_paused:!t.routine_paused},t.routine_paused?"已恢复":"已暂停",{routine_paused:!!t.routine_paused});
+  if(a==="routine-skip") return changeTask(t.id,{status:"dropped"},"这次例行已跳过",{status:t.status});
+  if(a==="routine-move"&&beginWrite()){
+    try{
+      const events=await q(sb.from("events").select("*"),"没读到固定日程");
+      const start=reserveSlot(freeSlots(today(),events,S.tasks,S.settings),t.est_min||25);
+      if(start) await writePlan([{...planBaseline(t),day:today(),start}]);
+      else await updTask(t.id,{plan_date:today(),plan_start:null});
+      render();toast(start?`已挪到今天 ${start}`:"已挪到今天，先不定时");
+    }catch(e){}finally{S.busy=false;}
+  }
+}
+
+const WISH_FILTER={q:"",area:"",time:"all",hide:true,sort:"short"};
+const weekStart=day=>addDays(day,1-isoDow(day));
+const weekDays=day=>Array.from({length:7},(_,i)=>addDays(weekStart(day),i));
+const taskMinutes=t=>t.est_min||25;
+function placeTasks(tasks,days,events,busy=S.tasks,settings=S.settings,scheduleFrom=null){
+  const now=new Date();
+  const free=new Map(days.map(day=>[day,freeSlots(day,events,busy,settings,scheduleFrom)]));
+  const plan=[];
+  for(const t of tasks){
+    for(const day of days){
+      const due=t.due_at&&Date.parse(t.due_at)>=now?new Date(t.due_at):null;
+      const limit=due&&ymd(due)===day&&day>=today()?wallMinutes(due):1440;
+      if(due&&day>ymd(due)) break;
+      const start=reserveSlot(free.get(day),taskMinutes(t),limit);
+      if(start!==null){
+        plan.push({...planBaseline(t),day,start});
+        break;
+      }
+    }
+  }
+  return plan;
+}
+function wishView(){
+  const f=load(userKey("wishFilter"),WISH_FILTER);
+  const all=S.tasks.filter(t=>t.kind==="wish"&&visibleTask(t));
+  const rows=all.filter(t=>(!f.hide||t.status!=="done")&&(!f.area||f.area===t.area)&&matchesSearch(t.title,f.q)&&
+    (f.time==="all"||(f.time==="20"?t.est_min>0&&t.est_min<=20:f.time==="45"?t.est_min>20&&t.est_min<=45:t.est_min>45)));
+  rows.sort(f.sort==="short"?(a,b)=>(a.est_min||Infinity)-(b.est_min||Infinity):projectOrder);
+  return `${detailNav("心愿单")}${itemSearch("wishq",f.q,"搜索心愿")}
+    <div class="chips">${colorChips("wish-area",AREAS,f.area,"全部类别")}</div>
+    ${selectedButtons("wish-time",[["all","不限时长"],["20","20 分钟以内"],["45","21–45 分钟"],["long","45 分钟以上"]],f.time,"","估计时长")}
+    ${selectedButtons("wish-hide",[[0,"显示已完成"],[1,"隐藏已完成"]],+f.hide,"","完成状态")}
+    ${selectedButtons("wish-sort",[["short","短的在前"],["old","最早的在前"]],f.sort,"","排序")}
+    <button class="btn" data-act="wish-new">新建心愿</button><p class="sub">显示 ${rows.length}/${all.length} 条</p>
+    ${rows.length?`<div class="list">${rows.map(t=>`<section class="project-child"><button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="sub">${t.est_min?fmtMin(t.est_min):"时长未知"}</span></button>
+    ${t.plan_date?`<p class="fl">计划 ${t.plan_date.slice(5)} ${t.plan_start?.slice(0,5)||""}</p>`:""}
+    ${t.status!=="done"?actionButton("wish-plan","排进这周",t.id):""}</section>`).join("")}</div>`:'<p class="empty">没有符合条件的心愿。</p>'}`;
+}
+async function wishAction(a,v){
+  const key=userKey("wishFilter"), f=load(key,WISH_FILTER);
+  if(a==="wish-new") return editSheet(null,{kind:"wish"});
+  if(a==="wish-plan"){
+    const t=S.tasks.find(t=>t.id===v);
+    if(!t||!beginWrite()) return;
+    try{
+      const events=await q(sb.from("events").select("*"),"没读到固定日程");
+      const days=weekDays(today()).filter(d=>d>=today());
+      const [slot]=placeTasks([t],days,events,S.tasks.filter(row=>row.id!==t.id));
+      if(!slot){toast("这周没有放得下的空闲时段。");return;}
+      await writePlan([slot]);
+      render();toast(`已排到 ${slot.day.slice(5)} ${slot.start}`,{label:"撤销",fn:()=>undoPlan([slot])});
+    }catch(e){}finally{S.busy=false;}
+    return;
+  }
+  const keyByAction={"wish-time":"time","wish-area":"area","wish-hide":"hide","wish-sort":"sort"};
+  save(key,{...f,[keyByAction[a]]:a==="wish-hide"?v==="1":v});render();
+}
+
 function allView(){
   const f=S.all, ql=f.q.trim().toLowerCase();
-  let ts=S.tasks.filter(t=>t.status!=="dropped"&&(f.status==="all"||(f.status==="todo"?["todo","doing"].includes(t.status):t.status===f.status))&&(!f.area||t.area===f.area)&&(!ql||(t.title+" "+t.notes).toLowerCase().includes(ql)));
-  const cnt=k=>S.tasks.filter(t=>k==="todo"?["todo","doing"].includes(t.status):t.status===k).length;
+  let ts=S.tasks.filter(t=>visibleTask(t)&&t.kind!=="routine"&&(f.status==="all"||(f.status==="todo"?["todo","doing"].includes(t.status):t.status===f.status))&&(!f.area||t.area===f.area)&&(!ql||(t.title+" "+t.notes).toLowerCase().includes(ql)));
+  if(f.hideExpired) ts=ts.filter(t=>!t.due_at||Date.parse(t.due_at)>=Date.now()||t.status==="done");
+  const byQuadrant=load(userKey("byQuadrant"),false);
+  const cnt=k=>S.tasks.filter(t=>visibleTask(t)&&t.kind!=="routine").filter(t=>k==="todo"?["todo","doing"].includes(t.status):t.status===k).length;
   ts.sort(f.sort==="due"?((a,b)=>(a.due_at?Date.parse(a.due_at):Infinity)-(b.due_at?Date.parse(b.due_at):Infinity)):
     ((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)));
   return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button><span class="date">全部任务</span><button class="iconbtn" data-act="new">+ 新建</button></div>
+    <div class="chips">${actionButton("projects","项目")}${actionButton("routines","每日例行")}${actionButton("wishes","心愿单")}</div>
     <div class="search"><input class="f" id="allq" placeholder="搜索" value="${esc(f.q)}" aria-label="搜索任务"></div>
-    <div class="chips" role="group" aria-label="状态">${STATUS.map(([k,l])=>`<button class="chip" data-act="fstatus" data-v="${k}" aria-pressed="${f.status===k}">${l} ${cnt(k)}</button>`).join("")}</div>
+    <div class="chips" role="group" aria-label="状态"><button class="chip" data-act="fstatus" data-v="all" aria-pressed="${f.status==="all"}">所有状态</button>${STATUS.map(([k,l])=>`<button class="chip" data-act="fstatus" data-v="${k}" aria-pressed="${f.status===k}">${l} ${cnt(k)}</button>`).join("")}</div>
     <div class="chips" role="group" aria-label="类别"><button class="chip" data-act="farea" data-v="" aria-pressed="${!f.area}">全部类别</button>${AREAS.map(([a,c])=>`<button class="chip" data-act="farea" data-v="${a}" aria-pressed="${f.area===a}"><span class="dot" style="background:${c};margin-right:6px"></span>${a}</button>`).join("")}</div>
     <div class="chips"><button class="chip" data-act="fsort" data-v="due" aria-pressed="${f.sort==="due"}">按截止排</button><button class="chip" data-act="fsort" data-v="new" aria-pressed="${f.sort==="new"}">最新的在前</button></div>
-    <div class="list">${ts.length?ts.map(t=>`<button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${esc(dueText(t)||(t.plan_date?t.plan_date.slice(5).replace("-","/"):""))}</span></button>`).join(""):`<p class="empty">${ql?"没搜到，换个词试试。":"这里还没有任务。"}</p>`}</div>`;
+    <div class="chips">${actionButton("quadrants",byQuadrant?"列表视图":"四象限")}<button class="chip" data-act="filter-expired" aria-pressed="${!!f.hideExpired}">隐藏过期任务</button></div>
+    ${byQuadrant?quadrantGrid(ts.sort(taskOrder)):`<div class="list">${ts.length?ts.map(t=>`<button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${esc(dueText(t)||(t.plan_date?t.plan_date.slice(5).replace("-","/"):""))}</span></button>`).join(""):`<p class="empty">${ql?"没搜到，换个词试试。":"这里还没有任务。"}</p>`}</div>`}`;
 }
 
 /* ---------- calendar: plan vs record ---------- */
@@ -369,8 +874,8 @@ function ensureRecord(){
   if(S.rec.day!==day) void loadRecord(day);
 }
 async function loadRecord(day,keepRows=false){
-  const si=dayStart(day).toISOString(), ei=dayStart(addDays(day,1)).toISOString();
-  const request=keepRows?{...S.rec,loading:true}:{day,loading:true};
+  const [from,to]=calendarRange(day), si=dayStart(from).toISOString(), ei=dayStart(to).toISOString();
+  const request=keepRows?{...S.rec,day,loading:true,error:false}:{day,loading:true};
   S.rec=request;
   try{
     const [usage,sessions,events]=await Promise.all([
@@ -390,38 +895,259 @@ function recordSpan(start,end,d0,d1){
   const s=wallMinutes(new Date(from)), e=to===+d1?1440:wallMinutes(new Date(to));
   return {s,e:Math.max(s,e),minutes:(to-from)/60000};
 }
-function calView(){
-  const day=calendarDay(), record=S.rec;
-  const ready=record.day===day&&!!record.usage&&!record.error;
-  const failed=record.day===day&&record.error;
+function calendarRecords(day,record){
   const d0=dayStart(day), d1=dayStart(addDays(day,1)), now=new Date();
-  const plan=[], unscheduled=[];
-  for(const t of S.tasks){ if(t.plan_date!==day||t.status==="dropped") continue;
-    if(t.plan_start){ const s=hm(t.plan_start); plan.push({s,e:s+(t.est_min||30),title:t.title,color:areaColor(t.area),id:t.id,done:t.status==="done"}); }
-    else unscheduled.push(t); }
-  for(const ev of (ready?record.events:[])){
-    const on=ev.on_date===day||(ev.repeat_days&&ev.repeat_days.includes(isoDow(day))&&(!ev.valid_from||ev.valid_from<=day)&&(!ev.valid_until||day<=ev.valid_until));
-    if(on) plan.push({s:hm(ev.start_time),e:hm(ev.end_time),title:ev.title,color:areaColor(ev.area),fixed:true}); }
   const rec=[], perApp=new Map(); let fun=0, work=0;
-  if(ready){
-    for(const u of record.usage){ const cap=Date.parse(u.started_at)+3*36e5, en=Math.min(u.ended_at?Date.parse(u.ended_at):+now,cap);
+    for(const u of (record.usage||[])){ const cap=Date.parse(u.started_at)+3*36e5, en=Math.min(u.ended_at?Date.parse(u.ended_at):+now,cap);
       const span=recordSpan(u.started_at,en,d0,d1); if(!span) continue;
       rec.push({...span,title:u.app,color:appColor(u.app),open:!u.ended_at&&day===today()&&now<cap});
       perApp.set(u.app,(perApp.get(u.app)||0)+span.minutes); fun+=span.minutes; }
-    for(const x of record.sessions){ const en=x.ended_at?Date.parse(x.ended_at):+now;
+    for(const x of (record.sessions||[])){ const en=x.ended_at?Date.parse(x.ended_at):+now;
       const span=recordSpan(x.started_at,en,d0,d1); if(!span) continue;
       const tk=S.tasks.find(t=>t.id===x.task_id), ac=S.acts.find(a=>a.id===x.activity_id);
       rec.push({...span,title:tk?tk.title:ac?ac.title:"做事",soft:true}); work+=span.minutes; }
+  return {rec,perApp,fun,work};
+}
+const EVENT_AREAS=[["学校","#1D9E75"],["兴趣","#7F77DD"],["娱乐","#378ADD"],["运动","#D4537E"],["生活","#BA7517"],["工作","#D85A30"]];
+const CAL_AREAS=[...new Map([...AREAS,...EVENT_AREAS])];
+const CAL_FILTER={area:"",hideDone:false};
+const calendarFilter=()=>load(userKey("calendarFilter"),CAL_FILTER);
+const calendarTask=(t,f)=>visibleTask(t)&&(!f.area||t.area===f.area)&&!["project","routine"].includes(t.kind)&&
+  !["someday","inbox"].includes(t.status)&&(!f.hideDone||t.status!=="done");
+const eventColor=area=>EVENT_AREAS.find(([name])=>name===area)?.[1]||areaColor(area);
+const weekMode=()=>load(userKey("calendarMode"),"day")==="week";
+const calendarRange=day=>weekMode()?[weekStart(day),addDays(weekStart(day),7)]:[day,addDays(day,1)];
+function calendarTools(){
+  const f=calendarFilter();
+  return `<div class="chips">${selectedButtons("cal-mode",[["day","日视图"],["week","周视图"]],weekMode()?"week":"day","","视图")}
+    ${actionButton("event-new","加日程")}${actionButton("planner-open","帮我排")}</div>
+    <details id="calendar-filter" ${load(userKey("calendarFilterOpen"),false)?"open":""}><summary class="sub">筛选计划</summary>
+      <div class="chips" style="margin-top:8px">${colorChips("cal-area",CAL_AREAS,f.area,"全部类别")}
+      <button class="chip" data-act="cal-hide" aria-pressed="${f.hideDone}">隐藏已完成</button></div></details>`;
+}
+function weekView(){
+  const days=weekDays(calendarDay()), record=S.rec, f=calendarFilter();
+  const ready=record.day===calendarDay()&&!!record.usage&&!record.error, failed=record.day===calendarDay()&&record.error;
+  return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button><span class="daynav"><button class="iconbtn" data-act="cal-day" data-v="-7" aria-label="前一周">‹</button><span class="date">${days[0].slice(5)} 至 ${days[6].slice(5)}</span><button class="iconbtn" data-act="cal-day" data-v="7" aria-label="后一周">›</button></span>
+    <button class="iconbtn" data-act="cal-day" data-v="0">本周</button></div>${calendarTools()}
+    ${failed?`<p class="sub">没读到这一周的记录。 ${actionButton("retry-record","重试")}</p>`:""}
+    <div class="week-grid">${days.map(day=>{
+      const planned=S.tasks.filter(t=>t.plan_date===day&&calendarTask(t,f));
+      const fixed=ready?record.events.filter(e=>eventOn(e,day)&&(!f.area||e.area===f.area)):[];
+      const items=[...planned.map(t=>({id:t.id,title:t.title,area:t.area,start:t.plan_start,act:"edit"})),
+        ...fixed.map(e=>({id:e.id,title:e.title,area:e.area,start:e.start_time,act:"event-edit"}))];
+      items.sort((a,b)=>(hm(a.start)??1440)-(hm(b.start)??1440));
+      const {fun,work}=ready?calendarRecords(day,record):{};
+      return `<section class="focus week-day"><button class="row" data-act="cal-select-day" data-v="${day}"><strong>${day.slice(5)} 周${WD[dayStart(day).getDay()]}</strong></button>
+        <div class="grid2"><div class="stack week-plan"><span class="label">计划 · ${items.length}</span>
+        ${items.length?items.map(item=>`<button class="row week-item" data-act="${item.act}" data-id="${item.id}"><i class="dot" style="background:${item.act==="edit"?areaColor(item.area):eventColor(item.area)}"></i><span class="t">${esc(item.title)}<small class="sub">${item.start?item.start.slice(0,5):"未定时间"}</small></span></button>`).join(""):`<span class="sub">${ready?"没有安排":"等待读取固定日程"}</span>`}</div>
+        <div class="stack"><span class="label">记录</span>${ready?`<span class="sub">做事 ${fmtMin(Math.round(work))}</span><span class="sub">娱乐 ${fmtMin(Math.round(fun))}</span>`:`<span class="sub">${failed?"读取失败":"正在读取…"}</span>`}</div></div></section>`;
+    }).join("")}</div>`;
+}
+function eventSheet(event){
+  const defaultDate=calendarDay(), key=userKey("eventDraft."+(event?.id||"new"));
+  const draft=load(key,{title:event?.title||"",area:event?.area||"生活",start:event?.start_time?.slice(0,5)||"09:00",
+    end:event?.end_time?.slice(0,5)||"10:00",mode:event&&!event.on_date?"weekly":"once",day:event?.on_date||event?.valid_from||defaultDate,
+    days:event?.repeat_days||[isoDow(defaultDate)]});
+  const areaOptions=EVENT_AREAS.some(([a])=>a===draft.area)?EVENT_AREAS:[...EVENT_AREAS,[draft.area,eventColor(draft.area)]];
+  openSheet(`<h2>${event?"编辑日程":"加日程"}</h2><form id="event-form" class="stack">
+    <label><span class="fl">日程名称</span><input class="f" id="event-title" value="${esc(draft.title)}" required maxlength="300"></label>
+    <div><p class="fl">类别</p><div class="chips">${areaOptions.map(([area,color])=>`<button class="chip" type="button" data-event-area="${esc(area)}" aria-pressed="${draft.area===area}"><span class="dot" style="background:${color}"></span> ${esc(area)}</button>`).join("")}</div></div>
+    <div class="grid2"><label><span class="fl">开始</span><input class="f" type="time" id="event-start" value="${esc(draft.start)}" required></label>
+    <label><span class="fl">结束</span><input class="f" type="time" id="event-end" value="${esc(draft.end)}" required></label></div>
+    <label><span class="fl">重复</span><select class="f" id="event-mode"><option value="once">一次性</option><option value="weekly" ${draft.mode==="weekly"?"selected":""}>每周重复</option></select></label>
+    <label><span class="fl" id="event-day-label">${draft.mode==="weekly"?"从哪天开始":"日期"}</span><input class="f" type="date" id="event-day" value="${esc(draft.day)}" required></label>
+    <div class="chips" id="event-repeat" ${draft.mode==="weekly"?"":"hidden"}>${weekdayButtons(draft.days)}</div>
+    <p class="err" id="event-err"></p>
+    <div class="grid2">${event?actionButton("event-delete","删除",event.id):'<button type="button" class="btn" data-act="close-sheet">取消</button>'}<button class="btn primary" type="submit">保存</button></div>
+    </form>`,{type:"event",id:event?.id||null,event});
+  const form=$("#event-form"), buttons=form.querySelectorAll("[data-event-area]"), fields=[...form.querySelectorAll("input,select,button")];
+  const days=bindWeekdays(form,draft.days,keep);
+  buttons.forEach(b=>b.onclick=()=>{
+    if(S.busy) return;
+    draft.area=b.getAttribute("data-event-area");
+    buttons.forEach(button=>button.setAttribute("aria-pressed",button.getAttribute("data-event-area")===draft.area));keep();
+  });
+  function keep(){
+    Object.assign(draft,{title:$("#event-title").value,start:$("#event-start").value,end:$("#event-end").value,
+      mode:$("#event-mode").value,day:$("#event-day").value,days:[...days]});
+    $("#event-repeat").hidden=draft.mode!=="weekly";
+    $("#event-day-label").textContent=draft.mode==="weekly"?"从哪天开始":"日期";
+    save(key,draft);
   }
+  form.oninput=form.onchange=keep;
+  form.onsubmit=async ev=>{
+    ev.preventDefault();if(S.busy) return;
+    keep();
+    const title=draft.title.trim(), weekly=draft.mode==="weekly";
+    if(!title||!draft.day||!draft.start||!draft.end||hm(draft.end)<=hm(draft.start)||(weekly&&!days.size)){
+      $("#event-err").textContent="填好名称和日期，结束时间要晚于开始时间。每周重复要选至少一天。";return;
+    }
+    if(!beginWrite()) return;
+    fields.forEach(f=>f.disabled=true);
+    const data={title,area:draft.area,start_time:draft.start,end_time:draft.end,on_date:weekly?null:draft.day,
+      repeat_days:weekly?[...days].sort():null,valid_from:weekly?draft.day:null,valid_until:weekly?event?.valid_until??null:null};
+    try{
+      if(event) await q(sb.from("events").update(data).eq("id",event.id).select().single());
+      else await insertRecord("events",data,"event");
+      save(key,null);closeSheet();toast("日程保存了");void loadRecord(calendarDay(),true);
+    }catch(e){}finally{fields.forEach(f=>f.disabled=false);S.busy=false;}
+  };
+}
+async function insertRecord(table,data,type){
+  const key=userKey("pendingRecord."+type), previous=load(key,null), signature=JSON.stringify(data);
+  const id=previous?.signature===signature?previous.id:crypto.randomUUID();
+  save(key,{id,signature});
+  const rows=await q(sb.from(table).upsert({...data,id,user_id:S.user.id},{onConflict:"id",ignoreDuplicates:true}).select());
+  const row=rows[0]||await q(sb.from(table).select("*").eq("id",id).single());
+  save(key,null);
+  return row;
+}
+async function archiveEvent(id,archived=true){
+  if(!beginWrite()) return;
+  try{
+    await q(sb.from("events").update({archived}).eq("id",id).select().single());
+    closeSheet();void loadRecord(calendarDay(),true);
+    if(archived) toast("日程已删除",{label:"撤销",fn:()=>archiveEvent(id,false)});
+    else toast("日程已恢复");
+  }catch(e){}finally{S.busy=false;}
+}
+
+const PLAN_SCOPE=[["today","今天"],["week","本周"]];
+const planDraftKey=()=>userKey("plannerDraft");
+const plannerLead=5; // Let the user review a preview before its first start time.
+const planCandidates=days=>S.tasks.filter(t=>availableTask(t)&&(!t.plan_date||t.plan_date<=days.at(-1))&&
+  (t.kind!=="wish"||t.plan_date)&&(!t.plan_start||t.plan_date<today())&&
+  !S.tasks.some(child=>child.parent_id===t.id&&visibleTask(child)&&child.status!=="done")).sort(taskOrder);
+const scopeDays=scope=>scope==="today"?[today()]:weekDays(today()).filter(d=>d>=today());
+function localTimestamp(){
+  const now=new Date();
+  return today()+"T"+clockLabel(wallMinutes(now))+":"+pad(now.getSeconds())+"."+String(now.getMilliseconds()).padStart(3,"0");
+}
+function planBaseline(t){
+  return {id:t.id,old_day:t.plan_date??null,old_start:t.plan_start??null,old_status:t.status,minutes:taskMinutes(t)};
+}
+async function writePlan(entries){
+  const p_plan=entries.map(({id,day,start,old_day,old_start,old_status,minutes})=>({id,day,start,old_day,old_start,old_status,minutes}));
+  const updated=await q(sb.rpc("web_commit_plan",{p_plan,p_now:localTimestamp(),p_tz:Intl.DateTimeFormat().resolvedOptions().timeZone}),"排程没保存");
+  updated.forEach(upsertLocal);
+}
+async function undoPlan(entries){
+  if(!beginWrite()) return;
+  try{
+    const p_plan=entries.map(({id,day,start,old_day,old_start,old_status})=>({id,day,start,old_day,old_start,old_status}));
+    const rows=await q(sb.rpc("web_undo_plan",{p_plan}),"排程没撤销");
+    rows.forEach(upsertLocal);render();toast("排程已撤销");
+  }catch(e){}finally{S.busy=false;}
+}
+function plannerSheet(force=false,scope=load(userKey("plannerScope"),"today")){
+  const key=planDraftKey(), current=load(key,null);
+  const draft=!force&&current?.day===today()&&current.scope===scope?current:null;
+  if(draft){paintPlanner(draft);return;}
+  const request={};
+  S.planRequest=request;
+  openSheet(`<h2>帮我排</h2>${selectedButtons("planner-scope",PLAN_SCOPE,scope,"","安排范围")}
+    <p class="sub">正在找空闲时间…</p><button class="btn" data-act="close-sheet">关闭</button>`,{type:"planner",scope});
+  void (async()=>{
+    try{
+      const events=await q(sb.from("events").select("*"),"没读到固定日程");
+      if(S.planRequest!==request||$("#sheet").hidden) return;
+      const days=scopeDays(scope), candidates=planCandidates(days);
+      const earliest=Math.ceil((wallMinutes(new Date())+plannerLead)/5)*5;
+      const slots=placeTasks(candidates,days,events,S.tasks,S.settings,earliest);
+      const next={day:today(),scope,rows:slots.map(row=>({...row,choice:"pending",excluded:[]}))};
+      save(key,next);paintPlanner(next);
+    }catch(e){
+      if(S.planRequest===request&&!$("#sheet").hidden){
+        openSheet(`<h2>帮我排</h2><p class="sub">没读到固定日程，暂时不能预览。</p>
+          ${actionButton("planner-refresh","重试",scope)}<button class="btn" data-act="close-sheet">关闭</button>`,{type:"planner",scope});
+      }
+    }
+  })();
+}
+function paintPlanner(draft){
+  S.planRequest=null;
+  const rows=draft.rows.filter(row=>S.tasks.some(t=>t.id===row.id&&availableTask(t)));
+  const pending=rows.filter(row=>row.choice==="pending").length, accepted=rows.filter(row=>row.choice==="yes").length;
+  openSheet(`<h2>帮我排</h2>${selectedButtons("planner-scope",PLAN_SCOPE,draft.scope,"","安排范围")}
+    ${rows.length?`<p class="sub">预览有 ${rows.length} 条，${pending} 条待选择。选好后再保存。</p>
+     <div class="list" id="planner-rows">${rows.map(row=>{
+       const t=S.tasks.find(t=>t.id===row.id);
+       return `<section class="project-child"><div class="meta"><i class="dot" style="background:${areaColor(t.area)}"></i>${esc(t.area||"其他")}</div><p class="note">${esc(t.title)}</p>
+         <p class="sub">${row.day.slice(5)} ${row.start} · ${fmtMin(taskMinutes(t))}</p>
+         ${selectedButtons("planner-choice",[["yes","好"],["swap","换一个"],["no","不排"]],row.choice,row.id,"选择 "+t.title)}</section>`;
+     }).join("")}</div>`:'<p class="empty">没有待排任务，或剩余空闲时间放不下。</p>'}
+    <p class="err" id="planner-err"></p>
+    <button class="btn primary" data-act="planner-commit" ${pending||!accepted?"disabled":""}>就这样</button>
+    ${actionButton("planner-refresh","重新预览",draft.scope)}
+    <button class="btn" data-act="close-sheet">关闭</button>`,{type:"planner",scope:draft.scope});
+}
+async function plannerAction(a,el){
+  const v=el.dataset.v, key=planDraftKey(), draft=load(key,null);
+  if(a==="planner-open") return plannerSheet();
+  if(a==="planner-scope"||a==="planner-refresh"){
+    save(userKey("plannerScope"),v);
+    return plannerSheet(true,v);
+  }
+  if(!draft||draft.day!==today()){return plannerSheet(true);}
+  if(a==="planner-choice"){
+    const row=draft.rows.find(r=>r.id===el.dataset.id);
+    if(!row) return;
+    if(v!=="swap"){row.choice=v;save(key,draft);paintPlanner(draft);return;}
+    if(!beginWrite()) return;
+    try{
+      const events=await q(sb.from("events").select("*"),"没读到固定日程");
+      const days=scopeDays(draft.scope), used=new Set([...draft.rows.map(r=>r.id),...row.excluded]);
+      const candidates=planCandidates(days).filter(t=>!used.has(t.id));
+      const occupied=draft.rows.filter(r=>r!==row&&r.choice!=="no").flatMap(r=>{
+        const t=S.tasks.find(task=>task.id===r.id);
+        return t?[{...t,plan_date:r.day,plan_start:r.start}]:[];
+      });
+      const earliest=Math.ceil((wallMinutes(new Date())+plannerLead)/5)*5;
+      const [replacement]=placeTasks(candidates,days,events,[...S.tasks,...occupied],S.settings,earliest);
+      if(!replacement){toast("没有另一件放得下的待办。");return;}
+      row.excluded.push(row.id);Object.assign(row,replacement,{choice:"pending"});
+      save(key,draft);paintPlanner(draft);
+    }catch(e){}finally{S.busy=false;}
+    return;
+  }
+  const rows=draft.rows.filter(row=>S.tasks.some(t=>t.id===row.id&&availableTask(t)));
+  const accepted=rows.filter(row=>row.choice==="yes");
+  if(rows.some(row=>row.choice==="pending")||!accepted.length||!beginWrite()) return;
+  el.disabled=true;
+  try{
+    await writePlan(accepted);
+    save(key,null);closeSheet();render();
+    toast(`已安排 ${accepted.length} 条`,{label:"撤销",fn:()=>undoPlan(accepted)});
+  }catch(e){
+    $("#planner-err").textContent="计划或时间有变化。请重新预览后再保存。";el.disabled=false;
+  }finally{S.busy=false;}
+}
+
+function calView(){
+  if(weekMode()) return weekView();
+  const day=calendarDay(), record=S.rec, f=calendarFilter();
+  const ready=record.day===day&&!!record.usage&&!record.error;
+  const failed=record.day===day&&record.error;
+  const now=new Date();
+  const plan=[], unscheduled=[];
+  for(const t of S.tasks){ if(t.plan_date!==day||!calendarTask(t,f)) continue;
+    if(t.plan_start){ const s=hm(t.plan_start); plan.push({s,e:s+(t.est_min||30),title:t.title,color:areaColor(t.area),id:t.id,done:t.status==="done"}); }
+    else unscheduled.push(t); }
+  for(const ev of (ready?record.events:[])){
+    const on=eventOn(ev,day);
+    if(on&&(!f.area||ev.area===f.area)) plan.push({s:hm(ev.start_time),e:hm(ev.end_time),title:ev.title,color:eventColor(ev.area),fixed:true,id:ev.id}); }
+  const {rec,perApp,fun,work}=calendarRecords(day,ready?record:{});
   const all=[...plan,...rec]; const lo=Math.min(7,...all.map(b=>Math.floor(b.s/60))), hi=Math.max(24,...all.map(b=>Math.ceil(b.e/60)));
   const H=40, top=lo*60, px=m=>(m-top)/60*H, height=(hi-lo)*H;
-  const blk=b=>{const y=px(b.s), h=Math.max(16,px(b.e)-y-2); return `<div class="blk${b.soft||b.fixed?" soft":""}" style="top:${y}px;height:${h}px;${b.soft||b.fixed?"":"background:"+b.color}${b.fixed?";box-shadow:inset 3px 0 0 "+b.color:""}"><b>${esc(b.title)}${b.open?" · 进行中":""}</b>${h>30?`<span>${pad(Math.floor(b.s/60)%24)}:${pad(b.s%60)}–${pad(Math.floor(b.e/60)%24)}:${pad(b.e%60)} · ${Math.round(b.minutes??b.e-b.s)} 分</span>`:""}</div>`;};
+  const blk=b=>{const y=px(b.s), h=Math.max(16,px(b.e)-y-2); return `<${b.fixed?"button":"div"} ${b.fixed?`data-act="event-edit" data-id="${b.id}"`:""} class="blk${b.soft||b.fixed?" soft":""}" style="top:${y}px;height:${h}px;${b.soft||b.fixed?"":"background:"+b.color}${b.fixed?";box-shadow:inset 3px 0 0 "+b.color:""}"><b>${esc(b.title)}${b.open?" · 进行中":""}</b>${h>30?`<span>${pad(Math.floor(b.s/60)%24)}:${pad(b.s%60)}–${pad(Math.floor(b.e/60)%24)}:${pad(b.e%60)} · ${Math.round(b.minutes??b.e-b.s)} 分</span>`:""}</${b.fixed?"button":"div"}>`;};
   let hrs=""; for(let h=lo+1;h<hi;h++) hrs+=`<span style="top:${(h-lo)*H}px">${pad(h%24)}:00</span>`;
   const nowM=wallMinutes(now), showNow=day===today()&&nowM>=top&&nowM<=hi*60;
   const dd=dayStart(day);
   return `<div class="top"><button class="iconbtn" data-act="home">‹ 返回</button>
       <span class="daynav"><button class="iconbtn" data-act="cal-day" data-v="-1" aria-label="前一天">‹</button><span class="date">${dd.getMonth()+1}月${dd.getDate()}日 周${WD[dd.getDay()]}</span><button class="iconbtn" data-act="cal-day" data-v="1" aria-label="后一天">›</button></span>
       ${day!==today()?`<button class="iconbtn" data-act="cal-day" data-v="0">今天</button>`:"<span></span>"}</div>
+    ${calendarTools()}
     <div class="sum">${ready?`<span>娱乐 <b>${fmtMin(Math.round(fun))}</b></span>${[...perApp].sort((a,b)=>b[1]-a[1]).map(([a,m])=>`<span><i class="dot" style="background:${appColor(a)}"></i>${esc(a)} ${Math.round(m)} 分</span>`).join("")}<span>做事 <b>${fmtMin(Math.round(work))}</b></span>`:failed?`<span class="sub">没读到这一天的记录。</span><button class="btn small" data-act="retry-record">重试</button>`:`<span class="sub">正在读取这一天的记录…</span>`}</div>
     ${unscheduled.length?`<div><p class="label" style="margin:0 0 4px">计划了、没定时间</p><div class="list">${unscheduled.map(t=>`<button class="row${t.status==="done"?" done":""}" data-act="edit" data-id="${t.id}"><span class="dot" style="background:${areaColor(t.area)}"></span><span class="t">${esc(t.title)}</span><span class="faint">${t.est_min?fmtMin(t.est_min):""}</span></button>`).join("")}</div></div>`:""}
     <div class="tlhead"><span></span><span>计划</span><span>记录</span></div>
@@ -434,26 +1160,29 @@ function calView(){
 }
 
 /* ---------- sheets ---------- */
-function editSheet(t){
-  t=t||{title:"",area:"",status:"todo",est_min:25,quadrant:0,energy:"any",due_at:null,plan_date:null,notes:""};
-  const key=userKey("taskDraft."+(t.id||"new")), draft=load(key,null);
+function editSheet(t,context={}){
+  t=t||{...context,title:"",area:"",status:"todo",est_min:25,quadrant:0,energy:"any",due_at:null,plan_date:null,notes:""};
+  const key=userKey("taskDraft."+(t.id||(t.parent_id?"child."+t.parent_id:["project","wish"].includes(t.kind)?t.kind:"new"))), draft=load(key,null);
   const due=t.due_at?new Date(t.due_at):null, dueLocal=due?ymd(due)+"T"+pad(due.getHours())+":"+pad(due.getMinutes()):"";
-  openSheet(`<h2>${t.id?"任务":"新任务"}</h2>
+  const heading=t.kind==="wish"?(t.id?"心愿":"新建心愿"):t.kind==="project"?(t.id?"项目":"新建项目"):t.id?"任务":t.parent_id?"新建子任务":"新任务";
+  openSheet(`<h2>${heading}</h2>
    <form id="tf" style="display:flex;flex-direction:column;gap:12px">
+    ${t.followup_of?`<p class="sub">接着做：${esc(S.tasks.find(row=>row.id===t.followup_of)?.title||"上次的任务")}</p>`:""}
     <div><p class="fl">要做什么</p><input class="f" id="t-title" maxlength="300" value="${esc(t.title)}" required></div>
     <div><p class="fl">类别</p><div class="chips">${AREAS.map(([a,c])=>`<button type="button" class="chip" data-area="${a}" aria-pressed="${t.area===a}"><span class="dot" style="background:${c};margin-right:6px"></span>${a}</button>`).join("")}</div></div>
     <div class="grid2"><div><p class="fl">哪天做</p><input class="f" type="date" id="t-plan" value="${t.plan_date||""}"></div>
       <div><p class="fl">大概多久</p><select class="f" id="t-est">${[0,...MINS,120,180].map(m=>`<option value="${m}" ${+t.est_min===m?"selected":""}>${m?fmtMin(m):"不确定"}</option>`).join("")}${MINS.concat([0,120,180]).includes(+t.est_min)?"":`<option selected value="${t.est_min}">${fmtMin(t.est_min)}</option>`}</select></div></div>
     <div><p class="fl">截止时间</p><input class="f" type="datetime-local" id="t-due" value="${dueLocal}"></div>
     <details><summary class="sub">更多：重要程度、需要的精力、状态、备注</summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
-      <div class="grid2"><div><p class="fl">重要程度</p><select class="f" id="t-q">${["还没分","重要且紧急","重要不紧急","紧急不重要","都不"].map((l,i)=>`<option value="${i}" ${(t.quadrant||0)===i?"selected":""}>${l}</option>`).join("")}</select></div>
-      <div><p class="fl">需要的精力</p><select class="f" id="t-en">${[["any","都行"],["low","累了也能做"],["mid","一般"],["high","要状态好"]].map(([k,l])=>`<option value="${k}" ${t.energy===k?"selected":""}>${l}</option>`).join("")}</select></div></div>
+      <div class="grid2"><label><span class="fl">重要</span><select class="f" id="t-important"><option value="no">不重要</option><option value="yes" ${important(t)?"selected":""}>重要</option></select></label>
+      <label><span class="fl">紧急</span><select class="f" id="t-urgent">${[["auto","按截止时间自动"],["yes","紧急"],["no","不紧急"]].map(([v,l])=>`<option value="${v}" ${v===(t.urgency_override==null?"auto":t.urgency_override?"yes":"no")?"selected":""}>${l}</option>`).join("")}</select></label></div>
+      <div><p class="fl">需要的精力</p><select class="f" id="t-en">${[["any","都行"],["low","累了也能做"],["mid","一般"],["high","要状态好"]].map(([k,l])=>`<option value="${k}" ${t.energy===k?"selected":""}>${l}</option>`).join("")}</select></div>
       <div><p class="fl">状态</p><select class="f" id="t-st">${(t.status==="doing"?[...STATUS,["doing","进行中"]]:STATUS).map(([k,l])=>`<option value="${k}" ${t.status===k?"selected":""}>${l}</option>`).join("")}</select></div>
       ${t.progress_note||t.next_step?`<p class="sub">上次做到：${esc(t.progress_note)}${t.next_step?"；下次先"+esc(t.next_step):""}</p>`:""}
       <div><p class="fl">备注</p><textarea class="f" id="t-notes">${esc(t.notes)}</textarea></div></div></details>
     <p class="err" id="t-err"></p>
     <div class="grid2">${t.id?`<button type="button" class="btn" data-act="del" data-id="${t.id}">删除</button>`:`<button type="button" class="btn" data-act="close-sheet">取消</button>`}<button class="btn primary" type="submit">保存</button></div>
-   </form>`,{type:"task",id:t.id||null});
+   </form>`,{type:"task",id:t.id||null,context});
   const form=$("#tf"), details=form.querySelector("details"), fields=[...form.querySelectorAll("input,select,textarea")];
   let area=draft?.area??(t.area||"");
   const areas=form.querySelectorAll("[data-area]");
@@ -467,17 +1196,54 @@ function editSheet(t){
     const title=$("#t-title").value.trim(); if(!title){$("#t-err").textContent="写一下要做什么。";return;}
     const dv=$("#t-due").value; let st=$("#t-st").value; const plan=$("#t-plan").value||null;
     if(plan&&st==="inbox") st="todo";
-    const data={title,area,est_min:+$("#t-est").value,plan_date:plan,due_at:dv?new Date(dv).toISOString():null,quadrant:+$("#t-q").value,energy:$("#t-en").value,status:st,notes:$("#t-notes").value.trim(),done_at:st==="done"?(t.done_at||new Date().toISOString()):null};
+    const data={title,area,est_min:+$("#t-est").value,plan_date:plan,due_at:dv?new Date(dv).toISOString():null,is_important:$("#t-important").value==="yes",urgency_override:$("#t-urgent").value==="auto"?null:$("#t-urgent").value==="yes",energy:$("#t-en").value,status:st,notes:$("#t-notes").value.trim(),done_at:st==="done"?(t.done_at||new Date().toISOString()):null};
+    data.quadrant=quadrant(data);
+    if(!t.id&&context.kind) data.kind=context.kind;
+    if(!t.id&&context.parent_id){
+      data.parent_id=context.parent_id;
+      data.position=Math.max(0,...children(context.parent_id).map(child=>child.position||0))+1;
+    }
+    if(plan!==t.plan_date) data.plan_start=null;
     if(!beginWrite()) return;
     const btn=form.querySelector('[type="submit"]'); btn.disabled=true;
     for(const field of [...fields,...areas]) field.disabled=true;
-    try{ if(t.id) await updTask(t.id,data); else await createTask(data,"editor"); save(key,null); closeSheet(); toast(t.id?"保存了":"加好了"); render(); }
+    try{ if(t.id) await updTask(t.id,data); else await createTask(data,"editor."+key); save(key,null); closeSheet(); toast(t.id?"保存了":"加好了"); render(); }
     catch(err){ btn.disabled=false; }
     finally{ for(const field of [...fields,...areas]) field.disabled=false; S.busy=false; } };
 }
+function extensionConflicts(session,end,events){
+  const extensionStart=new Date(Math.max(Date.now(),Date.parse(session.started_at)+session.planned_min*60000));
+  const firstDay=ymd(extensionStart), lastDay=ymd(end);
+  const names=[];
+  for(let day=firstDay;day<=lastDay;day=addDays(day,1)){
+    const from=day===firstDay?wallMinutes(extensionStart):0;
+    const to=day===lastDay?Math.ceil(wallMinutes(end)+(end.getSeconds()+end.getMilliseconds()/1000)/60):1440;
+    if(to<=from) continue;
+    const tasks=S.tasks.filter(t=>availableTask(t)&&t.id!==session.task_id&&t.plan_date===day);
+    for(const task of tasks){
+      const start=hm(task.plan_start);
+      if(start!=null&&start<to&&start+taskMinutes(task)>from) names.push(task.title);
+    }
+    for(const event of events){
+      if(eventOn(event,day)&&hm(event.start_time)<to&&hm(event.end_time)>from) names.push(event.title);
+    }
+    const remaining=tasks.filter(t=>!t.plan_start).sort(taskOrder);
+    if(!remaining.length) continue;
+    const free=freeSlots(day,events,S.tasks,S.settings);
+    const before=free.map(([start,stop])=>[Math.max(start,from),stop]).filter(([start,stop])=>stop>start);
+    const after=free.map(([start,stop])=>[Math.max(start,to),stop]).filter(([start,stop])=>stop>start);
+    for(const task of remaining){
+      const fitsBefore=reserveSlot(before,taskMinutes(task))!==null;
+      const fitsAfter=reserveSlot(after,taskMinutes(task))!==null;
+      if(fitsBefore&&!fitsAfter) names.push(task.title);
+    }
+  }
+  return [...new Set(names)];
+}
+
 function stopSheet(){
   const s=S.session, tg=sessionTarget(), key=userKey("stopDraft."+s.id), draft=load(key,{});
-  const isAct=!!s.activity_id; let choice=null;
+  const isAct=!!s.activity_id; let choice=null, events=[], eventsRequest=null;
   openSheet(`<h2>做到哪了？</h2>
     <textarea class="f" id="s-note" placeholder="${isAct?"随便写一句，也可以不写":"一句话就行，比如：提交了，求职信还差最后一段"}">${esc(draft.note||"")}</textarea>
     <p class="label" style="margin:4px 0 0">接下来</p>
@@ -487,6 +1253,8 @@ function stopSheet(){
       <input class="f" id="s-next" placeholder="下次先做什么" value="${esc(draft.next||"")}">
       <div class="chips" id="s-min">${[15,20,30,45,60].map(m=>`<button type="button" class="chip" data-m="${m}" aria-pressed="${m===20}">${m} 分钟</button>`).join("")}</div>
       <div class="chips" id="s-day"><button type="button" class="chip" data-d="1" aria-pressed="true">明天</button><button type="button" class="chip" data-d="2">后天</button><button type="button" class="chip" data-d="0">先不排</button></div></div>`}
+    ${isAct?"":`<button class="opt" data-c="today">今天到此</button>
+      <label id="today-next" hidden><span class="fl">还想继续做或学什么？</span><input class="f" id="s-follow" maxlength="300" placeholder="可以不写" value="${esc(draft.follow||"")}"></label>`}
     <button class="opt" data-c="more">再做 20 分钟</button>
     <div id="s-warn"></div>
     <div class="chips" style="align-items:center"><span class="sub">这次感觉怎么样？</span><button type="button" class="chip" data-fb="5">👍</button><button type="button" class="chip" data-fb="1">👎</button></div>
@@ -494,42 +1262,55 @@ function stopSheet(){
     <button class="btn primary" id="s-go" disabled>确定</button>
     <button class="btn" data-act="close-sheet">回去接着做</button>`,{type:"stop",id:s.id});
   const card=$("#sheet-card"); let mins=draft.mins??20, day=draft.day??1, fb=draft.fb??null;
-  const go=$("#s-go"), noteInput=$("#s-note"), nextInput=$("#s-next"), errorText=$("#s-err");
-  const keep=()=>save(key,{note:noteInput.value,next:nextInput?.value||"",choice,mins,day,fb});
-  noteInput.oninput=keep; if(nextInput) nextInput.oninput=keep;
+  const go=$("#s-go"), noteInput=$("#s-note"), nextInput=$("#s-next"), followInput=$("#s-follow"), errorText=$("#s-err");
+  const keep=()=>save(key,{note:noteInput.value,next:nextInput?.value||"",follow:followInput?.value||"",choice,mins,day,fb});
+  noteInput.oninput=keep; if(nextInput) nextInput.oninput=keep; if(followInput) followInput.oninput=keep;
   const moreMinutes=()=>Math.min(600,Math.max(s.planned_min,Math.ceil((Date.now()-Date.parse(s.started_at))/60000))+20);
   const pickChoice=()=>{ card.querySelectorAll("[data-c]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.c===choice));
     if($("#later")) $("#later").hidden=choice!=="later";
+    if($("#today-next")) $("#today-next").hidden=choice!=="today";
     const end=new Date(Date.parse(s.started_at)+moreMinutes()*60000), sl=sleepAt();
-    $("#s-warn").innerHTML=choice==="more"&&end>sl?`<div class="warnbox">再做 20 分钟会到 ${pad(end.getHours())}:${pad(end.getMinutes())}，比你定的睡觉时间晚 ${Math.round((end-sl)/60000)} 分钟。</div>`:"";
+    const names=choice==="more"?extensionConflicts(s,end,events):[];
+    const sleepDelay=end>sl?`<p>再做 20 分钟会到 ${clockLabel(wallMinutes(end))}，比你定的睡觉时间晚 ${Math.ceil((end-sl)/60000)} 分钟。</p>`:"";
+    const displaced=names.length?`<p>会挤到这些安排</p><ul>${names.map(name=>`<li>${esc(name)}</li>`).join("")}</ul>`:"";
+    $("#s-warn").innerHTML=choice==="more"&&(sleepDelay||displaced)?`<div class="warnbox">${sleepDelay||"<p>睡觉时间不用推迟。</p>"}${displaced}</div>`:"";
     go.disabled=!choice; };
-  card.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{ if(!S.busy){ choice=b.dataset.c; pickChoice(); keep(); } });
+  const loadConflicts=()=>{
+    if(choice!=="more"||eventsRequest) return;
+    eventsRequest=q(sb.from("events").select("*"),"没读到固定日程")
+      .then(rows=>{events=rows;if(go.isConnected) pickChoice();},()=>{eventsRequest=null;});
+  };
+  card.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{ if(!S.busy){ choice=b.dataset.c; pickChoice(); keep(); loadConflicts(); } });
   const mark=(name,value)=>card.querySelectorAll("[data-"+name+"]").forEach(b=>b.setAttribute("aria-pressed",+b.dataset[name]===value));
   card.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{if(!S.busy){mins=+b.dataset.m;mark("m",mins);keep();}});
   card.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{if(!S.busy){day=+b.dataset.d;mark("d",day);keep();}});
   card.querySelectorAll("[data-fb]").forEach(b=>b.onclick=()=>{if(!S.busy){fb=+b.dataset.fb;mark("fb",fb);keep();}});
-  choice=draft.choice??null; pickChoice(); mark("m",mins); mark("d",day); mark("fb",fb);
+  choice=draft.choice??null; pickChoice(); loadConflicts(); mark("m",mins); mark("d",day); mark("fb",fb);
   go.onclick=async()=>{ if(!choice||!beginWrite()) return;
-    go.disabled=true; noteInput.disabled=true; if(nextInput) nextInput.disabled=true;
+    go.disabled=true; noteInput.disabled=true; if(nextInput) nextInput.disabled=true; if(followInput) followInput.disabled=true;
     const note=noteInput.value.trim();
     try{
       if(choice==="more"){
         S.session=await q(sb.from("sessions").update({planned_min:moreMinutes()}).eq("id",s.id).is("ended_at",null).select().single());
-        save(key,{note:noteInput.value,next:nextInput?.value||""}); closeSheet(); render(); return;
+        save(key,{note:noteInput.value,next:nextInput?.value||"",follow:followInput?.value||""}); closeSheet(); render(); return;
       }
       const later=choice==="later", date=later&&day?addDays(today(),day):null;
-      const result=await q(sb.rpc("finish_web_session",{p_id:s.id,p_outcome:choice,p_note:note,
-        p_next:later?nextInput.value.trim():"",p_min:later?mins:null,p_date:date,p_rating:fb}));
+      const result=choice==="today"?
+        await q(sb.rpc("finish_web_day",{p_id:s.id,p_note:note,p_followup:followInput.value.trim(),p_date:addDays(today(),1),p_rating:fb})):
+        await q(sb.rpc("finish_web_session",{p_id:s.id,p_outcome:choice,p_note:note,
+          p_next:later?nextInput.value.trim():"",p_min:later?mins:null,p_date:date,p_rating:fb}));
       if(result.task) patchLocal(result.task.id,result.task);
       if(result.activity&&tg.act) Object.assign(tg.act,result.activity);
-      if(result.session.outcome==="done"){
+      if(result.followup){
+        upsertLocal(result.followup);toast("今天到此。后续排到明天了。");
+      }else if(result.session.outcome==="done"){
         toast(isAct?"做完了":"完成了：「"+tg.title+"」");
       } else {
         const planned=result.task?.plan_date;
         toast(planned?"排到"+(planned===addDays(today(),1)?"明天":"后天")+"了，下次从这里接着做":"存好了，下次从这里接着做");
       }
-      save(key,null); S.session=null; S.rec={}; S.pick=0; closeSheet(); render();
-    }catch(e){ go.disabled=false; noteInput.disabled=false; if(nextInput) nextInput.disabled=false; errorText.textContent="没保存上，网络好了再点一次。"; }
+      save(key,null); S.session=null; S.rec={}; S.projectTime=null; S.activityLikes=null; setPick(0); closeSheet(); render();
+    }catch(e){ go.disabled=false; noteInput.disabled=false; if(nextInput) nextInput.disabled=false; if(followInput) followInput.disabled=false; errorText.textContent="没保存上，网络好了再点一次。"; }
     finally{ S.busy=false; } };
 }
 function actSheet(a){
@@ -540,10 +1321,10 @@ function actSheet(a){
     <button class="btn" data-act="close-sheet">先不</button>`,{type:"activity",id:a.id});
 }
 function replanSheet(){
-  const left=Math.max(0,minsLeftToSleep()), ranked=rank().filter(r=>r.kind==="task").map(r=>r.item.id);
+  const left=Math.max(0,minsLeftToSleep());
   const td=today(), dueToday=t=>t.due_at&&ymd(new Date(t.due_at))===td;
   const key=userKey("replanDraft."+td), draft=load(key,{});
-  const open=todayOpen().sort((a,b)=>ranked.indexOf(a.id)-ranked.indexOf(b.id));
+  const open=todayOpen().sort(taskOrder);
   let used=open.reduce((sum,t)=>sum+(dueToday(t)?t.est_min||30:0),0);
   const plan=open.map(t=>{ const m=t.est_min||30, fixed=dueToday(t);
     if(fixed) return {t,keep:true,fixed};
@@ -560,18 +1341,245 @@ function replanSheet(){
     try{
       const move=plan.filter(p=>!p.keep).map(p=>p.t.id);
       if(move.length){
-        const updated=await q(sb.from("tasks").update({plan_date:addDays(td,1)}).in("id",move).eq("plan_date",td).select());
+        const updated=await q(sb.from("tasks").update({plan_date:addDays(td,1),plan_start:null}).in("id",move).eq("plan_date",td).select());
         updated.forEach(t=>patchLocal(t.id,t));
       }
       save(key,null); closeSheet(); toast("排好了"); render();
     }catch(e){ go.disabled=false; }finally{ S.busy=false; } };
 }
+const RULE_CONDITIONS=[["energy","精力"],["time","时间段"],["place","地点"]];
+const ruleConditionLabel=r=>r.condition_kind==="energy"?ENERGY.find(([id])=>id===r.energy)?.[1]:
+  r.condition_kind==="time"?`${r.start_time.slice(0,5)}–${r.end_time.slice(0,5)}`:r.place;
+function matchingRules(now){
+  const location=load(userKey("recommendationPlace"),""), minute=wallMinutes(now);
+  return S.rules.filter(r=>{
+    if(!r.active||r.archived) return false;
+    if(r.condition_kind==="energy") return r.energy===S.energy;
+    if(r.condition_kind==="place") return !!location&&r.place===location;
+    const start=hm(r.start_time), end=hm(r.end_time);
+    return start<end?minute>=start&&minute<end:minute>=start||minute<end;
+  });
+}
+const ruleBoost=(rules,item,isActivity)=>rules.reduce((score,r)=>score+
+  ((r.target_kind==="area"&&r.area===item.area)||(isActivity&&r.target_kind==="activity"&&r.activity_id===item.id)?1:0),0);
+function locationControl(){
+  const locations=[...new Set(S.rules.filter(r=>r.active&&!r.archived&&r.condition_kind==="place").map(r=>r.place))].sort();
+  if(!locations.length) return "";
+  const place=load(userKey("recommendationPlace"),"");
+  return `<label><span class="fl">现在在哪</span><select class="f" id="recommendation-place"><option value="">不选地点</option>
+    ${locations.map(name=>`<option value="${esc(name)}" ${place===name?"selected":""}>${esc(name)}</option>`).join("")}</select></label>`;
+}
+const RULE_FILTER={q:"",state:"all",sort:"recent"};
+const settingNotesKey=()=>userKey("notesDraft");
+function rulesView(){
+  const f=load(userKey("ruleFilter"),RULE_FILTER), notes=load(settingNotesKey(),S.settings.web_notes||"");
+  const all=S.rules.filter(r=>!r.archived);
+  const rules=all.filter(r=>(f.state==="all"||(f.state==="active")===r.active)&&
+    matchesSearch((ruleConditionLabel(r)||"")+" "+(r.area||S.acts.find(a=>a.id===r.activity_id)?.title||""),f.q));
+  if(f.sort==="condition") rules.sort((a,b)=>a.condition_kind.localeCompare(b.condition_kind)||String(ruleConditionLabel(a)).localeCompare(String(ruleConditionLabel(b)),"zh"));
+  else rules.sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+  return `${detailNav("规则本","return-settings")}
+    ${itemSearch("ruleq",f.q,"搜索规则")}
+    ${selectedButtons("rule-filter",[["all","全部"],["active","启用中"],["paused","已暂停"]],f.state,"","状态")}
+    ${selectedButtons("rule-sort",[["recent","按添加时间"],["condition","按条件"]],f.sort,"","排序")}
+    <button class="btn" data-act="rule-new">新建规则</button>
+    ${S.rulesError?`<p class="empty">没读到规则。 ${actionButton("rule-refresh","重试")}</p>`:`<div class="list">
+      <p class="sub">显示 ${rules.length}/${all.length} 条</p>
+      ${rules.length?rules.map(r=>{
+        const card=S.acts.find(a=>a.id===r.activity_id&&!a.archived);
+        return `<section class="project-child"><button class="row" data-act="rule-edit" data-v="${r.id}"><span class="t">当${esc(ruleConditionLabel(r) || "")}时，多推荐 ${r.target_kind==="area"?`<i class="dot" style="background:${areaColor(r.area)}"></i> ${esc(r.area)}`:esc(card?.title||"已删除活动卡")}</span></button>
+          ${actionButton("rule-toggle",r.active?"暂停":"恢复",r.id)}</section>`;
+      }).join(""):'<p class="empty">没有符合条件的规则。</p>'}</div>`}
+    <section class="focus"><h2 class="fl">记事本</h2><form class="stack" id="rule-notes-form"><textarea id="rule-notes" class="f" maxlength="20000" aria-label="自由记事本" placeholder="随手写点想法…">${esc(notes)}</textarea>
+      <button class="btn" type="submit">保存笔记</button></form></section>`;
+}
+function bindCatalogForm(form,key,draft,fields,paint,submit){
+  const inputs=[...form.querySelectorAll("input,select,textarea,button")];
+  const keep=()=>{
+    for(const [name,id] of Object.entries(fields)) draft[name]=$("#"+id).value;
+    save(key,draft);paint?.();
+  };
+  form.oninput=form.onchange=keep;
+  form.onsubmit=async ev=>{
+    ev.preventDefault();if(S.busy) return;
+    keep();
+    const data=submit.data(draft);
+    if(typeof data==="string"){submit.error.textContent=data;return;}
+    if(!beginWrite()) return;
+    inputs.forEach(input=>input.disabled=true);
+    try{
+      await submit.write(data);
+      save(key,null);closeSheet();render();toast(submit.message);
+    }catch(e){submit.error.textContent="没保存上，请重试。";}
+    finally{inputs.forEach(input=>input.disabled=false);S.busy=false;}
+  };
+  return keep;
+}
+function selectOptions(options,active){
+  return options.map(([v,l])=>`<option value="${esc(v)}" ${String(v)===String(active)?"selected":""}>${esc(l)}</option>`).join("");
+}
+async function saveCatalogRow(table,data,id,type){
+  return id?await q(sb.from(table).update(data).eq("id",id).select().single()):await insertRecord(table,data,type);
+}
+function replaceRow(list,row){
+  const index=list.findIndex(r=>r.id===row.id);
+  if(index<0) list.push(row);
+  else list[index]=row;
+}
+function ruleSheet(r){
+  const key=userKey("ruleDraft."+(r?.id||"new"));
+  const draft=load(key,{kind:r?.condition_kind||"energy",energy:r?.energy||"low",start:r?.start_time?.slice(0,5)||"18:00",
+    end:r?.end_time?.slice(0,5)||"22:00",place:r?.place||"",target:r?.target_kind||"area",area:r?.area||"生活",card:r?.activity_id||""});
+  const cards=S.acts.filter(a=>!a.archived), cardOptions=[["","选择活动卡"],...cards.map(a=>[a.id,a.title])];
+  openSheet(`<h2>${r?"编辑规则":"新建规则"}</h2><form class="stack" id="rule-form">
+    <label><span class="fl">当什么条件满足时</span><select class="f" id="rule-kind">${selectOptions(RULE_CONDITIONS,draft.kind)}</select></label>
+    <label id="rule-energy-row"><span class="fl">精力</span><select class="f" id="rule-energy">${selectOptions(ENERGY,draft.energy)}</select></label>
+    <div class="grid2" id="rule-time-row"><label><span class="fl">开始</span><input class="f" id="rule-start" type="time" value="${esc(draft.start)}"></label>
+      <label><span class="fl">结束</span><input class="f" id="rule-end" type="time" value="${esc(draft.end)}"></label></div>
+    <label id="rule-place-row"><span class="fl">地点</span><input class="f" id="rule-place" maxlength="60" placeholder="例如：学校" value="${esc(draft.place)}"></label>
+    <label><span class="fl">多推荐什么</span><select class="f" id="rule-target">${selectOptions([["area","类别"],["activity","活动卡"]],draft.target)}</select></label>
+    <div class="chips" id="rule-areas">${AREAS.map(([area,color])=>`<button class="chip" type="button" data-rule-area="${area}" aria-pressed="${area===draft.area}"><i class="dot" style="background:${color}"></i> ${area}</button>`).join("")}</div>
+    <label id="rule-card-row"><span class="fl">活动卡</span><select class="f" id="rule-card">${selectOptions(cardOptions,draft.card)}</select></label>
+    <p class="err" id="rule-err"></p>
+    <div class="grid2">${r?actionButton("rule-delete","删除",r.id):'<button type="button" class="btn" data-act="close-sheet">取消</button>'}<button class="btn primary" type="submit">保存</button></div>
+    </form>`,{type:"rule",id:r?.id||null});
+  const form=$("#rule-form"), areas=form.querySelectorAll("[data-rule-area]");
+  const paint=()=>{
+    $("#rule-energy-row").hidden=draft.kind!=="energy";$("#rule-time-row").hidden=draft.kind!=="time";$("#rule-place-row").hidden=draft.kind!=="place";
+    $("#rule-areas").hidden=draft.target!=="area";$("#rule-card-row").hidden=draft.target!=="activity";
+    areas.forEach(b=>b.setAttribute("aria-pressed",b.getAttribute("data-rule-area")===draft.area));
+  };
+  const keep=bindCatalogForm(form,key,draft,{kind:"rule-kind",energy:"rule-energy",start:"rule-start",end:"rule-end",place:"rule-place",target:"rule-target",card:"rule-card"},paint,{
+    error:$("#rule-err"),message:"规则已保存",
+    data:draft=>{
+      if(draft.kind==="time"&&(!draft.start||!draft.end||draft.start===draft.end)) return "选择不同的开始和结束时间。";
+      if(draft.kind==="place"&&!draft.place.trim()) return "填写一个地点。";
+      if(draft.target==="activity"&&!cards.some(a=>a.id===draft.card)) return "选择一张活动卡。";
+      return {condition_kind:draft.kind,energy:draft.kind==="energy"?draft.energy:null,
+        start_time:draft.kind==="time"?draft.start:null,end_time:draft.kind==="time"?draft.end:null,
+        place:draft.kind==="place"?draft.place.trim():null,target_kind:draft.target,
+        area:draft.target==="area"?draft.area:null,activity_id:draft.target==="activity"?draft.card:null};
+    },
+    write:async data=>replaceRow(S.rules,await saveCatalogRow("web_rules",data,r?.id,"rule"))
+  });
+  areas.forEach(b=>b.onclick=()=>{if(!S.busy){draft.area=b.getAttribute("data-rule-area");keep();}});
+  paint();
+}
+async function changeCatalog(table,id,data,message,undo){
+  if(!beginWrite()) return;
+  try{
+    const row=await saveCatalogRow(table,data,id);
+    replaceRow(table==="activities"?S.acts:S.rules,row);
+    closeSheet();setPick(0);render();
+    toast(message,undo?{label:"撤销",fn:()=>changeCatalog(table,id,undo,"已撤销")}:null);
+  }catch(e){}finally{S.busy=false;}
+}
+function ruleAction(a,v){
+  if(a==="rule-new") return ruleSheet(null);
+  if(a==="rule-refresh") return refresh();
+  if(a==="rule-filter"||a==="rule-sort"){
+    const key=userKey("ruleFilter"), f=load(key,RULE_FILTER);
+    save(key,{...f,[a==="rule-filter"?"state":"sort"]:v});return render();
+  }
+  const r=S.rules.find(r=>r.id===v);
+  if(!r) return;
+  if(a==="rule-edit") return ruleSheet(r);
+  if(a==="rule-toggle") return changeCatalog("web_rules",r.id,{active:!r.active},r.active?"规则已暂停":"规则已恢复",{active:r.active});
+  if(a==="rule-delete") return changeCatalog("web_rules",r.id,{archived:true},"规则已删除",{archived:false});
+}
+async function saveRuleNotes(form){
+  if(!beginWrite()) return;
+  const field=$("#rule-notes"), btn=form.querySelector('[type="submit"]');
+  field.disabled=btn.disabled=true;
+  try{
+    S.settings=await q(sb.from("settings").update({web_notes:field.value}).eq("user_id",S.user.id).select().single());
+    save(settingNotesKey(),null);toast("笔记保存了");
+  }catch(e){}finally{field.disabled=btn.disabled=false;S.busy=false;}
+}
+
+const ACTIVITY_FILTER={q:"",area:"",state:"all",sort:"weight"};
+function activitiesView(){
+  const f=load(userKey("activityFilter"),ACTIVITY_FILTER), counts=S.activityLikes?.counts;
+  const all=S.acts.filter(a=>!a.archived);
+  const rows=all.filter(a=>matchesSearch(a.title,f.q)&&(!f.area||a.area===f.area)&&(f.state==="all"||(f.state==="active")===a.active));
+  rows.sort((a,b)=>(f.sort==="likes"?(counts?.[b.id]||0)-(counts?.[a.id]||0):0)||
+    b.weight-a.weight||a.title.localeCompare(b.title,"zh"));
+  return `${detailNav("活动卡","return-settings")}
+    ${itemSearch("activityq",f.q,"搜索活动卡")}
+    <div class="chips">${colorChips("activity-area",AREAS,f.area,"全部类别")}</div>
+    ${selectedButtons("activity-filter",[["all","全部"],["active","启用中"],["paused","已暂停"]],f.state,"","活动卡状态")}
+    ${selectedButtons("activity-sort",[["weight","按权重"],["likes","按点赞数"]],f.sort,"","活动卡排序")}
+    <button class="btn" data-act="activity-new">新建活动卡</button>
+    <p class="sub">显示 ${rows.length}/${all.length} 张</p>
+    ${S.activityLikes?.error?`<p class="sub">没读到点赞数。 ${actionButton("activity-likes","重试")}</p>`:""}
+    ${rows.length?`<div class="list">${rows.map(a=>`<section class="project-child">
+      <button class="row" data-act="activity-edit" data-v="${a.id}"><i class="dot" style="background:${areaColor(a.area)}"></i><span class="t">${esc(a.title)}</span><span class="sub">${fmtMin(a.minutes)}</span></button>
+      <p class="fl">${a.area?esc(a.area)+" · ":""}👍 ${counts?counts[a.id]||0:"…"} · 权重 ${Number(a.weight).toFixed(1)} · ${a.active?"启用中":"已暂停"}</p>
+      ${actionButton("activity-toggle",a.active?"暂停":"恢复",a.id)}
+    </section>`).join("")}</div>`:'<p class="empty">没有符合条件的活动卡。</p>'}`;
+}
+async function loadActivityLikes(){
+  const request={};
+  S.activityLikes=request;
+  try{
+    const rows=await q(sb.rpc("web_activity_likes"),"没读到点赞数");
+    request.counts=Object.fromEntries(rows.map(row=>[row.activity_id,row.likes]));
+  }catch(e){request.error=true;}
+  if(S.activityLikes===request&&S.view==="activities") render();
+}
+function activityEditor(a){
+  const key=userKey("activityDraft."+(a?.id||"new"));
+  const draft=load(key,{title:a?.title||"",minutes:a?.minutes||10,area:a?.area||"",
+    steps:(a?.steps||[]).join("\n"),done:a?.done_when||"",caution:a?.caution||""});
+  openSheet(`<h2>${a?"编辑活动卡":"新建活动卡"}</h2><form class="stack" id="activity-form">
+    <label><span class="fl">活动名称</span><input class="f" id="activity-title" required maxlength="300" value="${esc(draft.title)}"></label>
+    <div><p class="fl">类别</p><div class="chips">${AREAS.map(([area,color])=>`<button class="chip" type="button" data-activity-area="${area}" aria-pressed="${area===draft.area}"><i class="dot" style="background:${color}"></i> ${area}</button>`).join("")}</div></div>
+    <label><span class="fl">分钟数</span><input class="f" id="activity-minutes" type="number" min="1" max="600" required value="${esc(draft.minutes)}"></label>
+    <label><span class="fl">步骤，每行一步</span><textarea class="f" id="activity-steps" required maxlength="3000">${esc(draft.steps)}</textarea></label>
+    <label><span class="fl">做到什么就算完成，可不写</span><input class="f" id="activity-done" maxlength="300" value="${esc(draft.done)}"></label>
+    <label><span class="fl">注意事项，可不写</span><input class="f" id="activity-caution" maxlength="300" value="${esc(draft.caution)}"></label>
+    <p class="err" id="activity-err"></p>
+    <div class="grid2">${a?actionButton("activity-delete","删除",a.id):'<button type="button" class="btn" data-act="close-sheet">取消</button>'}<button class="btn primary" type="submit">保存</button></div>
+    </form>`,{type:"activity-edit",id:a?.id||null});
+  const form=$("#activity-form"), areas=form.querySelectorAll("[data-activity-area]");
+  const paint=()=>areas.forEach(b=>b.setAttribute("aria-pressed",b.getAttribute("data-activity-area")===draft.area));
+  const keep=bindCatalogForm(form,key,draft,{title:"activity-title",minutes:"activity-minutes",steps:"activity-steps",done:"activity-done",caution:"activity-caution"},paint,{
+    error:$("#activity-err"),message:"活动卡已保存",
+    data:draft=>{
+      const title=draft.title.trim(), minutes=+draft.minutes, steps=draft.steps.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+      if(!title||!Number.isInteger(minutes)||minutes<1||minutes>600||!steps.length) return "写上名称、1–600 分钟和至少一步。";
+      return {title,minutes,area:draft.area,steps,done_when:draft.done.trim(),caution:draft.caution.trim()};
+    },
+    write:async data=>replaceRow(S.acts,await saveCatalogRow("activities",data,a?.id,"activity"))
+  });
+  areas.forEach(b=>b.onclick=()=>{
+    if(S.busy) return;
+    const area=b.getAttribute("data-activity-area");draft.area=draft.area===area?"":area;keep();
+  });
+}
+function activityAction(a,v){
+  if(a==="activity-new") return activityEditor(null);
+  if(a==="activity-likes") return loadActivityLikes();
+  const field={"activity-area":"area","activity-filter":"state","activity-sort":"sort"}[a];
+  if(field){
+    const key=userKey("activityFilter"), f=load(key,ACTIVITY_FILTER);
+    save(key,{...f,[field]:v});return render();
+  }
+  const card=S.acts.find(a=>a.id===v&&!a.archived);
+  if(!card) return;
+  if(a==="activity-edit") return activityEditor(card);
+  if(a==="activity-toggle") return changeCatalog("activities",card.id,{active:!card.active},card.active?"活动卡已暂停":"活动卡已恢复",{active:card.active});
+  if(a==="activity-delete") return changeCatalog("activities",card.id,{active:false,archived:true},"活动卡已删除",{active:card.active,archived:false});
+}
+
 function settingsSheet(){
   const st=S.settings||{}, key=userKey("settingsDraft"), draft=load(key,{});
   openSheet(`<h2>设置</h2>
     <div class="grid2"><div><p class="fl">一天从几点开始</p><input class="f" type="time" id="st-start" value="${esc(draft.start??(st.day_start||"08:00").slice(0,5))}"></div>
     <div><p class="fl">几点睡觉</p><input class="f" type="time" id="st-sleep" value="${esc(draft.sleep??(st.sleep_time||"23:30").slice(0,5))}"></div></div>
     <button class="btn" id="st-save">保存作息</button>
+    <button class="btn" data-act="show-rules">规则本和记事本</button>
+    <button class="btn" data-act="show-activities">活动卡</button>
     <div style="border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px">
       <p class="fl">手机快捷指令的钥匙</p>
       <p class="sub">给 Siri、手表、耳机记东西用，不是你的密码。${st.device_key_hash?"已经生成过。重新生成后，旧钥匙立刻失效。":"还没生成。"}</p>
@@ -605,7 +1613,7 @@ function settingsSheet(){
 }
 
 /* ---------- actions ---------- */
-async function startSession(data){
+async function startSession(data,nudged=false){
   if(S.session||!beginWrite()) return;
   try{
     const result=await q(sb.rpc("start_web_session",{p_task:data.task_id??null,p_activity:data.activity_id??null,p_min:data.planned_min}),"没开始成");
@@ -613,6 +1621,9 @@ async function startSession(data){
     if(result.task){
       if(S.tasks.some(t=>t.id===result.task.id)) patchLocal(result.task.id,result.task);
       else if(result.task.status!=="dropped") S.tasks.push(result.task);
+    }
+    if(nudged&&result.session.task_id===data.task_id){
+      try{await resolveNudge("start",data.task_id);}catch(e){}
     }
     closeSheet(); render();
   }catch(e){} finally{ S.busy=false; }
@@ -630,13 +1641,64 @@ document.addEventListener("click",async ev=>{
   if(a==="close-sheet") return closeSheet();
   if(a==="retry") return boot();
   if(a==="logout") return logout();
-  if(a==="energy"){ S.energy=el.dataset.v; save("energy",S.energy); S.pick=0; return render(); }
-  if(a==="next"){ S.pick++; return render(); }
-  if(a==="all"||a==="home") return changeView(a);
+  if(a==="energy"){ S.energy=el.dataset.v; save("energy",S.energy); setPick(0); return render(); }
+  if(a==="recommendation-time"||a==="recommendation-area"){
+    const filter=recommendationFilter();
+    if(a==="recommendation-time") filter.minutes=+el.dataset.v; else filter.area=el.dataset.v;
+    save(userKey("recommendation"),filter);setPick(0);return render();
+  }
+  if(a==="nudge"){
+    const task=S.tasks.find(t=>t.id===S.settings.nudge_task_id);
+    if(!task) return;
+    const action=el.dataset.v;
+    if(action==="start") return startSession({task_id:task.id,planned_min:Math.min(600,task.est_min||25)},true);
+    if(!beginWrite()) return;
+    try{await resolveNudge(action,task.id);setPick(0);render();}
+    catch(e){}finally{S.busy=false;}
+    return;
+  }
+  if(a==="today-more"){const key=userKey("showToday");save(key,!load(key,false));return render();}
+  if(a==="filter-expired"){S.all.hideExpired=!S.all.hideExpired;save("allFilter",S.all);return render();}
+  if(a==="next"){ setPick(S.pick+1); return render(); }
+  if(a.startsWith("inbox-")) return inboxAction(a,el.dataset.v);
+  if(a.startsWith("wish-")) return wishAction(a,el.dataset.v);
+  if(a.startsWith("routine-")) return routineAction(a,el.dataset.v);
+  if(a.startsWith("project-")) return projectAction(a,el);
+  if(a==="all"||a==="home"||a==="inbox"||a==="projects"||a==="routines"||a==="wishes") return changeView(a);
   if(a==="cal"){ S.rec={}; return changeView("cal"); }
+  if(a.startsWith("planner-")) return plannerAction(a,el);
+  if(a==="cal-area"||a==="cal-hide"){
+    const f=calendarFilter();
+    if(a==="cal-area") f.area=el.dataset.v;else f.hideDone=!f.hideDone;
+    save(userKey("calendarFilter"),f);return render();
+  }
+  if(a==="cal-mode"||a==="cal-select-day"){
+    if(a==="cal-select-day"){S.cal.day=el.dataset.v;save(userKey("calendarDay"),S.cal.day);}
+    save(userKey("calendarMode"),a==="cal-select-day"?"day":el.dataset.v);S.rec={};return render();
+  }
+  if(a==="event-new") return eventSheet(null);
+  if(a==="event-edit"){
+    const event=S.rec.events?.find(e=>e.id===id);
+    if(event) return eventSheet(event);
+  }
+  if(a==="event-delete") return archiveEvent(el.dataset.v);
   if(a==="retry-record") return loadRecord(calendarDay());
   if(a==="cal-day"){ const v=+el.dataset.v; S.cal.day=v===0?null:addDays(calendarDay(),v); save(userKey("calendarDay"),S.cal.day); render(); return; }
   if(a==="settings") return settingsSheet();
+  if(a==="show-rules"||a==="show-activities"){
+    save(userKey("settingsBackView"),S.view);closeSheet();return changeView(a==="show-rules"?"rules":"activities");
+  }
+  if(a==="return-settings"){changeView(load(userKey("settingsBackView"),"home"));return settingsSheet();}
+  if(a.startsWith("activity-")) return activityAction(a,el.dataset.v);
+  if(a.startsWith("rule-")) return ruleAction(a,el.dataset.v);
+  if(a==="quadrants"){const key=userKey("byQuadrant");save(key,!load(key,false));return render();}
+  if(a==="quadrant-move"){
+    if(!beginWrite()) return;
+    const n=+el.dataset.v;
+    try{await updTask(id,{quadrant:n,is_important:n<3,urgency_override:n===1||n===3});setPick(0);render();}
+    catch(e){}finally{S.busy=false;}
+    return;
+  }
   if(a==="replan") return replanSheet();
   if(a==="new") return editSheet(null);
   if(a==="edit") return editSheet(S.tasks.find(t=>t.id===id));
@@ -654,21 +1716,22 @@ document.addEventListener("click",async ev=>{
   if(a==="fstatus"||a==="farea"||a==="fsort"){ S.all[{fstatus:"status",farea:"area",fsort:"sort"}[a]]=el.dataset.v; save("allFilter",S.all); return render(); }
   if(a==="del"){ const t=S.tasks.find(x=>x.id===id); const prev=t.status;
     if(!beginWrite()) return;
-    try{ await updTask(id,{status:"dropped"}); save(userKey("taskDraft."+id),null); closeSheet(); render();
+    try{ await updTask(id,{status:"dropped"}); save(userKey("taskDraft."+id),null); S.projectTime=null; closeSheet(); render();
       toast("删掉了「"+t.title+"」",{label:"撤销",fn:async()=>{
         if(!beginWrite()) return;
         try{
           const restored=await updTask(id,{status:prev});
           if(!S.tasks.some(row=>row.id===id)) S.tasks.push(restored);
-          render();
+          S.projectTime=null;render();
         }catch(e){}finally{ S.busy=false; }
       }});
     }catch(e){}finally{ S.busy=false; } return; }
 });
 document.addEventListener("submit",async ev=>{
+  if(ev.target.id==="rule-notes-form"){ev.preventDefault();return saveRuleNotes(ev.target);}
   if(ev.target.id==="cap"){ ev.preventDefault(); const inp=$("#capin"), v=inp.value.trim(); if(!v||!beginWrite()) return;
     const btn=ev.target.querySelector('[type="submit"]'); inp.disabled=true; btn.disabled=true;
-    try{ await createTask({title:v.slice(0,300),status:"inbox",source:"web"},"capture"); save("capDraft",""); toast("记下了，在“全部 › 收件箱”里"); render(); }
+    try{ await createTask({title:v.slice(0,300),status:"inbox",source:"web"},"capture"); save("capDraft",""); toast("记下了，在收件箱里"); render(); }
     catch(e){ inp.disabled=false; btn.disabled=false; }finally{ S.busy=false; } }
   if(ev.target.id==="login"){
     ev.preventDefault(); const btn=ev.target.querySelector('[type="submit"]'); if(btn.disabled) return;
@@ -680,9 +1743,26 @@ document.addEventListener("submit",async ev=>{
     finally{ btn.disabled=false; }
   }
 });
+function updateSearch(field,name,defaults){
+  const key=userKey(name);
+  save(key,{...load(key,defaults),q:field.value});
+  const pos=field.selectionStart,id=field.id;
+  render();
+  const replacement=$("#"+id);replacement.focus();replacement.setSelectionRange(pos,pos);
+}
 document.addEventListener("input",ev=>{
   if(ev.target.id==="capin") save("capDraft",ev.target.value);
+  if(ev.target.id==="rule-notes") save(settingNotesKey(),ev.target.value);
+  if(ev.target.id==="activityq") return updateSearch(ev.target,"activityFilter",ACTIVITY_FILTER);
+  if(ev.target.id==="ruleq") return updateSearch(ev.target,"ruleFilter",RULE_FILTER);
+  if(ev.target.id==="wishq") return updateSearch(ev.target,"wishFilter",WISH_FILTER);
+  if(ev.target.id==="routineq") return updateSearch(ev.target,"routineFilter",{state:"all",sort:"priority"});
+  if(ev.target.id==="projectq") return updateSearch(ev.target,projectFilterName(load(userKey("projectId"),null)),PROJECT_FILTER);
+  if(ev.target.id==="inboxq") return updateSearch(ev.target,"inboxFilter",{area:"",oldest:true});
   if(ev.target.id==="allq"){ S.all.q=ev.target.value; save("allFilter",S.all); const pos=ev.target.selectionStart; render(); const n=$("#allq"); n.focus(); n.setSelectionRange(pos,pos); }
+});
+document.addEventListener("change",ev=>{
+  if(ev.target.id==="recommendation-place"){save(userKey("recommendationPlace"),ev.target.value);setPick(0);render();}
 });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!S.busy&&!$("#sheet").hidden) closeSheet(); });
 addEventListener("scroll",()=>{ if(S.loaded&&!S.session&&!S.restoring) save(userKey("scroll."+S.view),scrollY); },{passive:true});
@@ -708,7 +1788,21 @@ async function boot(){
   if(panel?.type==="stop"&&S.session?.id===panel.id) stopSheet();
   if(panel?.type==="task"&&!S.session){
     const task=panel.id?S.tasks.find(t=>t.id===panel.id):null;
-    if(task||!panel.id) editSheet(task);
+    if(task||!panel.id) editSheet(task,panel.context);
+  }
+  if(panel?.type==="activity-edit"&&!S.session){
+    const card=panel.id?S.acts.find(a=>a.id===panel.id&&!a.archived):null;
+    if(card||!panel.id) activityEditor(card);
+  }
+  if(panel?.type==="rule"&&!S.session){
+    const rule=panel.id?S.rules.find(r=>r.id===panel.id&&!r.archived):null;
+    if(rule||!panel.id) ruleSheet(rule);
+  }
+  if(panel?.type==="planner"&&!S.session) plannerSheet(false,panel.scope);
+  if(panel?.type==="event"&&!S.session) eventSheet(panel.event||null);
+  if(panel?.type==="routine"&&!S.session){
+    const t=panel.id?S.tasks.find(t=>t.id===panel.id):null;
+    if(t||!panel.id) routineSheet(t);
   }
   if(panel?.type==="settings"&&!S.session) settingsSheet();
   if(panel?.type==="replan"&&panel.day===today()&&!S.session) replanSheet();
@@ -722,8 +1816,8 @@ sb.auth.onAuthStateChange((_e,session)=>{
   if((u&&u.id)===(S.user&&S.user.id)) return;
   if(!$("#sheet").hidden) closeSheet();
   const toastBox=$("#toast"); toastBox.hidden=true; toastBox.innerHTML=""; clearTimeout(tt);
-  Object.assign(S,{user:u,loaded:false,loadError:false,tasks:[],acts:[],session:null,settings:null,rec:{},pick:0});
-  if(u){ S.view=load(userKey("view"),"home"); S.cal.day=load(userKey("calendarDay"),null); }
+  Object.assign(S,{user:u,loaded:false,loadError:false,tasks:[],acts:[],rules:[],rulesError:false,session:null,settings:null,rec:{},projectTime:null,activityLikes:null,pick:0});
+  if(u){ S.pick=load(userKey("pick"),0); S.view=load(userKey("view"),"home"); S.cal.day=load(userKey("calendarDay"),null); }
   if(u) setTimeout(boot,0); else render();
 });
 render();
